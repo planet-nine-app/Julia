@@ -1,3 +1,4 @@
+import config from '../../config/local.js';
 import { createClient } from 'redis';
 import sessionless from 'sessionless-node';
   
@@ -30,11 +31,39 @@ const db = {
     return true;
   },
 
+  startPrompt: async (user, prompt) => {
+    await client.set(`prompt:${prompt}`, JSON.stringify({timestamp: new Date().getTime(), prompter: user.uuid}));
+
+    return true;
+  },
+
+  savePrompt: async (user, savedPrompt) => {
+    const currentPromptString = await client.get(`prompt:${savedPrompt.prompt}`);
+    const currentPrompt = JSON.parse(currentPromptString);
+    const now = new Date().getTime();
+
+    if(now - +currentPrompt.timestamp < config.promptTimeLimit) {
+      await client.sendCommand(['DEL', `prompt:${savedPrompt.prompt}`]);
+      return false;
+    }
+
+    if(!currentPrompt) {
+      return false;
+    }
+
+    currentPrompt.newTimestamp = savedPrompt.timestamp;
+    currentPrompt.newUUID = savedPrompt.uuid;
+    currentPrompt.newPubKey = savedPrompt.pubKey;
+
+    await client.set(`prompt:${prompt}`, JSON.stringify(currentPrompt));
+  },
+
   associateUsers: async (user, associatedUser) => {
     user.keys.interactingKeys[associatedUser.uuid] = associatedUser.pubKey;
     associatedUser.keys.interactingKeys[user.uuid] = user.pubKey;
 
-    return (await db.saveUser(user) && await db.saveUser(associatedUser));
+    const saved = (await db.saveUser(user) && await db.saveUser(associatedUser));
+    return user;
   },
 
   deleteAssociation: async (user, associatedUser) => {
@@ -57,3 +86,5 @@ const db = {
     return messages;
   }
 };
+
+export default db;

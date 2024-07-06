@@ -28,10 +28,16 @@ const associate = {
     const uuid = user.uuid;
     const prompt = randomLetters(4);
 
-    const message = timestamp + uuid + prmpt;
+    const message = timestamp + uuid + prompt;
     const signature = await sessionles.sign(message); 
+
+    await db.startPrompt(user, prompt);
     
     return {timestamp, uuid, prompt, signature};
+  },
+
+  savePrompt: async (user, savedPrompt) => {
+    return (await db.savePrompt(user, savedPrompt));
   },
 
   associate: async (user, associatedUser) => {
@@ -42,3 +48,5 @@ const associate = {
     return (await db.deleteAssociation(user, associatedUser));
   }
 };
+
+export default associate;

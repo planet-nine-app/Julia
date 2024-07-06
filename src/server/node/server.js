@@ -1,8 +1,7 @@
 import config from './config/local.js';
 import express from 'express';
-import dayjs from 'dayjs';
 import user from './src/user/user.js';
-import associate from './src/user/associate.js';
+import associate from './src/associate/associate.js';
 import messaging from './src/messaging/messaging.js';
 import sessionless from 'sessionless-node';
 
@@ -10,10 +9,13 @@ const app = express();
 app.use(express.json());
 
 app.use((req, res, next) => {
-  const requestTime = req.query.timestamp || req.body.timestamp;
-  if(Math.abs(dayjs(requestTime).diff(dayjs())) > config.allowedTimeDifference) {
+  const requestTime = +req.query.timestamp || +req.body.timestamp;
+  const now = new Date().getTime();
+  if(Math.abs(now - requestTime) > config.allowedTimeDifference) {
+console.log('time bounced');
     return res.send(new Error('no time like the present'));
   }
+  next();
 });
 
 app.use((req, res, next) => {
@@ -23,7 +25,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.put('/user/create', (req, res) => {
+app.put('/user/create', async (req, res) => {
   const pubKey = req.body.pubKey;
   const message = req.body.timestamp +  pubKey;
   const signature = req.body.signature;
@@ -33,11 +35,11 @@ app.put('/user/create', (req, res) => {
     return res.send({error: 'auth error'});
   }
 
-  const foundUser = await user.putUser(pubKey);
+  const foundUser = await user.putUser(pubKey, req.body.user);
   res.send(foundUser);
 });
 
-app.get('/user/:uuid', (req, res) => {
+app.get('/user/:uuid', async (req, res) => {
   const uuid = req.params.uuid;
   const timestamp = req.query.timestamp;
   const signature = req.query.signature;
@@ -51,7 +53,7 @@ app.get('/user/:uuid', (req, res) => {
   res.send(user);
 });
 
-app.get('/user/:uuid/associate/prompt', (req, res) => {
+app.get('/user/:uuid/associate/prompt', async (req, res) => {
   const uuid = req.params.uuid;
   const timestamp = req.query.timestamp;
   const signature = req.query.signature;
@@ -62,12 +64,29 @@ app.get('/user/:uuid/associate/prompt', (req, res) => {
     return res.send({error: 'auth error'});
   }
 
-  const prompt = associate.getPrompt(user);
+  const prompt = await associate.getPrompt(user);
 
   res.send(prompt);
 });
 
-app.post('/user/:uuid/associate', (req, res) => {
+app.post('/user/:uuid/associate/signedPrompt', async (req, res) => {
+  const uuid = req.params.uuid;
+  const timestamp = req.body.timestamp;
+  const pubKey = req.body.pubKey;
+  const prompt = req.body.prompt;
+  const signature = req.body.signature;
+  const message = timestamp + uuid + pubKey + prompt;
+
+  if(!signature || !sessionless.associate(signature, message, req.user.pubKey, newSignature, message, newPubKey)) {
+    res.status(403);
+    return res.send({error: 'auth error'});
+  }
+  
+  const result = await associate.saveSignedPrompt(req.user, req.body);
+  res.send({success: result});
+});
+
+app.post('/user/:uuid/associate', async (req, res) => {
   const uuid = req.params.uuid;
   const timestamp = req.body.timestamp;
   const newUUID = req.body.newUUID;
@@ -83,12 +102,12 @@ app.post('/user/:uuid/associate', (req, res) => {
   } 
 
   const associatedUser = await getUser(newUUID);
-  const association = await associate.associate(req.user, associatedUser);
+  const updatedUser = await associate.associate(req.user, associatedUser);
 
-  res.send(association);
+  res.send(updatedUser);
 });
 
-app.delete('/associated/:associatedUUID/user/:uuid', (req, res) => {
+app.delete('/associated/:associatedUUID/user/:uuid', async (req, res) => {
   const associatedUUID = req.params.associatedUUID;
   const uuid = req.params.uuid;
   const timestamp = req.body.timestamp;
@@ -106,7 +125,7 @@ app.delete('/associated/:associatedUUID/user/:uuid', (req, res) => {
   res.send(association);
 });
 
-app.delete('/user/:uuid', (req, res) => {
+app.delete('/user/:uuid', async (req, res) => {
   const uuid = req.params.uuid;
   const timestamp = req.body.timestamp;
   const signature = req.body.signature;
@@ -122,7 +141,7 @@ app.delete('/user/:uuid', (req, res) => {
   res.send({success: result});
 });
 
-app.post('/message', (req, res) => {
+app.post('/message', async (req, res) => {
   const timestamp = req.body.timestamp;
   const senderUUID = req.body.senderUUID;
   const receiverUUID = req.body.receiverUUID;
@@ -138,12 +157,12 @@ app.post('/message', (req, res) => {
   const sender = req.user;
   const receiver = await getUser(receiverUUID);
 
-  const resp = await messaging.messageUser(sender, receiver, message);
+  const result = await messaging.messageUser(sender, receiver, message);
 
-  res.send(resp);
-};
+  res.send({success: result});
+});
 
-app.get('/messages/user/:uuid', (req, res) => {
+app.get('/messages/user/:uuid', async (req, res) => {
   const timestamp = req.query.timestamp;
   const uuid = req.params.uuid;
   const siganture = req.query.signature;
@@ -157,3 +176,7 @@ app.get('/messages/user/:uuid', (req, res) => {
   const messages = await messaging.getMessages(req.user);
   res.send(messages);
 });
+
+app.listen(3000);
+
+console.log('server listening on port 3000');

@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "type": "module",
   "author": "zach babb",
   "license": "GPL-3.0-or-later",
   "dependencies": {
@@ -13,6 +14,7 @@
     "cors": "^2.8.5",
     "dayjs": "^1.11.11",
     "express": "^4.19.2",
+    "redis": "^4.6.15",
     "sessionless-node": "^0.10.1"
   }
 }

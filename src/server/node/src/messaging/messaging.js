@@ -14,3 +14,5 @@ const messaging = {
     return messages;
   }
 };
+
+export default messaging;
