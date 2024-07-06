@@ -1,16 +1,6 @@
 import db from '../persistence/db.js';
 import sessionless from 'sessionless-node';
 
-const sk = (keys) => {
-  global.keys = keys;
-};
-
-const gk = () => {
-  return keys;
-};
-
-sessionless.generateKeys(sk, gk);
-
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 
 const randomLetters = (quantity) => {
@@ -29,15 +19,15 @@ const associate = {
     const prompt = randomLetters(4);
 
     const message = timestamp + uuid + prompt;
-    const signature = await sessionles.sign(message); 
+    const signature = await sessionless.sign(message); 
 
     await db.startPrompt(user, prompt);
     
     return {timestamp, uuid, prompt, signature};
   },
 
-  savePrompt: async (user, savedPrompt) => {
-    return (await db.savePrompt(user, savedPrompt));
+  saveSignedPrompt: async (user, saveSignedPrompt) => {
+    return (await db.saveSignedPrompt(user, saveSignedPrompt));
   },
 
   associate: async (user, associatedUser) => {

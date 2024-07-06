@@ -5,6 +5,16 @@ import associate from './src/associate/associate.js';
 import messaging from './src/messaging/messaging.js';
 import sessionless from 'sessionless-node';
 
+const sk = (keys) => {
+  global.keys = keys;
+};
+
+const gk = () => {
+  return keys;
+};
+
+sessionless.generateKeys(sk, gk);
+
 const app = express();
 app.use(express.json());
 
@@ -12,16 +22,8 @@ app.use((req, res, next) => {
   const requestTime = +req.query.timestamp || +req.body.timestamp;
   const now = new Date().getTime();
   if(Math.abs(now - requestTime) > config.allowedTimeDifference) {
-console.log('time bounced');
     return res.send(new Error('no time like the present'));
   }
-  next();
-});
-
-app.use((req, res, next) => {
-  const isGet = req.method === 'GET';
-  const uuid = isGet ? req.params.uuid : req.body.uuid;
-  req.user = user.getUser(uuid);
   next();
 });
 
@@ -35,7 +37,7 @@ app.put('/user/create', async (req, res) => {
     return res.send({error: 'auth error'});
   }
 
-  const foundUser = await user.putUser(pubKey, req.body.user);
+  const foundUser = await user.putUser(req.body.user);
   res.send(foundUser);
 });
 
@@ -44,13 +46,15 @@ app.get('/user/:uuid', async (req, res) => {
   const timestamp = req.query.timestamp;
   const signature = req.query.signature;
   const message = timestamp + uuid;
+ 
+  const foundUser = await user.getUser(req.params.uuid);
 
-  if(!signature || !sessionless.verifySignature(signature, message, req.user.pubKey)) {
+  if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
 
-  res.send(user);
+  res.send(foundUser);
 });
 
 app.get('/user/:uuid/associate/prompt', async (req, res) => {
@@ -59,12 +63,14 @@ app.get('/user/:uuid/associate/prompt', async (req, res) => {
   const signature = req.query.signature;
   const message = timestamp + uuid;
 
-  if(!signature || !sessionless.verifySignature(signature, message, req.user.pubKey)) {
+  const foundUser = await user.getUser(req.params.uuid);
+
+  if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
 
-  const prompt = await associate.getPrompt(user);
+  const prompt = await associate.getPrompt(foundUser);
 
   res.send(prompt);
 });
@@ -77,32 +83,40 @@ app.post('/user/:uuid/associate/signedPrompt', async (req, res) => {
   const signature = req.body.signature;
   const message = timestamp + uuid + pubKey + prompt;
 
-  if(!signature || !sessionless.associate(signature, message, req.user.pubKey, newSignature, message, newPubKey)) {
+  const foundUser = await user.getUser(req.params.uuid);
+
+  if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
+
+console.log('uuid here is: ' + req.body.uuid);
   
-  const result = await associate.saveSignedPrompt(req.user, req.body);
+  const result = await associate.saveSignedPrompt(foundUser, req.body);
   res.send({success: result});
 });
 
 app.post('/user/:uuid/associate', async (req, res) => {
   const uuid = req.params.uuid;
-  const timestamp = req.body.timestamp;
+  const newTimestamp = req.body.newTimestamp;
   const newUUID = req.body.newUUID;
   const newPubKey = req.body.newPubKey;
   const prompt = req.body.prompt;
   const signature = req.body.signature;
   const newSignature = req.body.newSignature;
-  const message = timestamp + uuid + newUUID + newPubKey + prompt;
+  const message = newTimestamp + newUUID + newPubKey + prompt;
 
-  if(!signature || !sessionless.associate(signature, message, req.user.pubKey, newSignature, message, newPubKey)) {
+  const foundUser = await user.getUser(req.params.uuid);
+
+console.log('message here is: ' + message);
+
+  if(!signature || !sessionless.associate(signature, message, foundUser.pubKey, newSignature, message, newPubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   } 
 
-  const associatedUser = await getUser(newUUID);
-  const updatedUser = await associate.associate(req.user, associatedUser);
+  const associatedUser = await user.getUser(newUUID);
+  const updatedUser = await associate.associate(foundUser, associatedUser);
 
   res.send(updatedUser);
 });
@@ -114,13 +128,15 @@ app.delete('/associated/:associatedUUID/user/:uuid', async (req, res) => {
   const signature = req.body.signature;
   const message = timestamp + associatedUUID + uuid;
 
-  if(!signature || !sessionless.verifySignature(signature, message, req.user.pubKey)) {
+  const foundUser = await user.getUser(req.params.uuid);
+
+  if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
 
   const associatedUser = await getUser(associatedUUID);
-  const association = await associate.deleteAssociation(req.user, associatedUser);
+  const association = await associate.deleteAssociation(foundUser, associatedUser);
 
   res.send(association);
 });
@@ -131,12 +147,14 @@ app.delete('/user/:uuid', async (req, res) => {
   const signature = req.body.signature;
   const message = timestamp + uuid;
 
-  if(!signature || !sessionless.verifySignature(signature, message, req.user.pubKey)) {
+  const foundUser = await user.getUser(req.params.uuid);
+
+  if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
 
-  const result = await user.deleteUser(req.user);
+  const result = await user.deleteUser(foundUser);
   
   res.send({success: result});
 });
@@ -149,13 +167,18 @@ app.post('/message', async (req, res) => {
   const signature = req.body.signature;
   const msg = timestamp + senderUUID + receiverUUID;
 
-  if(!signature || !sessionless.verifySignature(signature, msg, req.user.pubKey)) {
+  const sender = await user.getUser(senderUUID);
+
+  if(!signature || !sessionless.verifySignature(signature, msg, sender.pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
 
-  const sender = req.user;
-  const receiver = await getUser(receiverUUID);
+  const receiver = await user.getUser(receiverUUID);
+
+  if(!receiver) {
+    return res.send({success: false});
+  }
 
   const result = await messaging.messageUser(sender, receiver, message);
 
@@ -165,16 +188,18 @@ app.post('/message', async (req, res) => {
 app.get('/messages/user/:uuid', async (req, res) => {
   const timestamp = req.query.timestamp;
   const uuid = req.params.uuid;
-  const siganture = req.query.signature;
+  const signature = req.query.signature;
   const message = timestamp + uuid;
 
-  if(!signature || !sessionless.verifySignature(signature, msg, req.user.pubKey)) {
+  const foundUser = await user.getUser(req.params.uuid);
+
+  if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
 
-  const messages = await messaging.getMessages(req.user);
-  res.send(messages);
+  const messages = await messaging.getMessages(foundUser);
+  res.send({ messages });
 });
 
 app.listen(3000);

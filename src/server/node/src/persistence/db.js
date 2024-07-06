@@ -10,12 +10,21 @@ const db = {
   getUser: async (uuid) => {
     const user = await client.get(`user:${uuid}`);
     const parsedUser = JSON.parse(user);
+console.log(`parsedUser: ${JSON.stringify(parsedUser)}`);
+console.log(uuid);
+    const currentKeys = await sessionless.getKeys();
+    parsedUser.keys.interactingKeys.julia = currentKeys.pubKey;
+    parsedUser.pendingPrompts = await db.getPendingPrompts(parsedUser);
     return parsedUser; 
   },
 
-  putUser: async (pubKey, user) => {
+  putUser: async (user) => {
     const uuid = sessionless.generateUUID();
     user.uuid = uuid;
+    user.keys = {
+      interactingKeys: {},
+      coordinatingKeys: {}
+    };
     await client.set(`user:${uuid}`, JSON.stringify(user));
     return uuid;
   },
@@ -33,17 +42,18 @@ const db = {
 
   startPrompt: async (user, prompt) => {
     await client.set(`prompt:${prompt}`, JSON.stringify({timestamp: new Date().getTime(), prompter: user.uuid}));
+    await client.sendCommand(['SADD', `prompt:${user.uuid}`, `prompt:${prompt}`]);
 
     return true;
   },
 
-  savePrompt: async (user, savedPrompt) => {
-    const currentPromptString = await client.get(`prompt:${savedPrompt.prompt}`);
+  saveSignedPrompt: async (user, saveSignedPrompt) => {
+    const currentPromptString = await client.get(`prompt:${saveSignedPrompt.prompt}`);
     const currentPrompt = JSON.parse(currentPromptString);
     const now = new Date().getTime();
 
-    if(now - +currentPrompt.timestamp < config.promptTimeLimit) {
-      await client.sendCommand(['DEL', `prompt:${savedPrompt.prompt}`]);
+    if(now - +currentPrompt.timestamp > config.promptTimeLimit) {
+      await client.sendCommand(['DEL', `prompt:${saveSignedPrompt.prompt}`]);
       return false;
     }
 
@@ -51,11 +61,30 @@ const db = {
       return false;
     }
 
-    currentPrompt.newTimestamp = savedPrompt.timestamp;
-    currentPrompt.newUUID = savedPrompt.uuid;
-    currentPrompt.newPubKey = savedPrompt.pubKey;
+    currentPrompt.newTimestamp = saveSignedPrompt.timestamp;
+    currentPrompt.newUUID = saveSignedPrompt.uuid;
+console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
+    currentPrompt.newPubKey = saveSignedPrompt.pubKey;
+    currentPrompt.prompt = saveSignedPrompt.prompt;
+    currentPrompt.newSignature = saveSignedPrompt.signature;
 
-    await client.set(`prompt:${prompt}`, JSON.stringify(currentPrompt));
+    await client.set(`prompt:${saveSignedPrompt.prompt}`, JSON.stringify(currentPrompt));
+    
+    return true;
+  },
+
+  getPendingPrompts: async (user) => {
+    const promptKeys = await client.sendCommand(['SMEMBERS', `prompt:${user.uuid}`]);
+    let prompts = {};
+    for(let i = 0; i < promptKeys.length; i++) {
+      const prompt = await client.get(promptKeys[i]);
+      const parsedPrompt = JSON.parse(prompt); 
+      if(parsedPrompt.newPubKey) {
+        prompts[parsedPrompt.prompt] = parsedPrompt;
+      }
+    }
+
+    return prompts;
   },
 
   associateUsers: async (user, associatedUser) => {

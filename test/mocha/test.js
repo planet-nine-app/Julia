@@ -6,7 +6,7 @@ import superAgent from 'superagent';
 const baseURL = 'http://127.0.0.1:3000/';
 
 const get = async function(path) {
-  //console.info("Getting " + path);
+  console.info("Getting " + path);
   return await superAgent.get(path).set('Content-Type', 'application/json');
 };
 
@@ -43,7 +43,8 @@ it('should register a user', async () => {
     pubKey: keys.pubKey,
     user: {
       handle: 'foo',
-      otherStuff: 'bar'
+      otherStuff: 'bar',
+      pubKey: keys.pubKey
     }
   };
 
@@ -51,18 +52,19 @@ it('should register a user', async () => {
 
   const res = await put(`${baseURL}user/create`, payload);
   savedUser = res.body;
-  res.body.userUUID.length.should.equal(36);
+  res.body.uuid.length.should.equal(36);
 });
 
 it('should create a second user', async () => {
-  keys2 = await sessionless.generateKeys((k) => { keysToReturn = k; }, () => {return keysToReturn;});i
+  keys2 = await sessionless.generateKeys((k) => { keysToReturn = k; }, () => {return keysToReturn;});
 
   const payload = {
     timestamp: new Date().getTime() + '',
     pubKey: keys2.pubKey,
     user: {
       handle: 'foo',
-      otherStuff: 'bar'
+      otherStuff: 'bar',
+      pubKey: keys2.pubKey
     }
   };
 
@@ -70,7 +72,8 @@ it('should create a second user', async () => {
 
   const res = await put(`${baseURL}user/create`, payload);
   savedUser2 = res.body;
-  res.body.userUUID.length.should.equal(36);
+  res.body.uuid.length.should.equal(36);
+console.log('savedUser2.uuid starts out as: ' + savedUser2.uuid);
 });
 
 it('should get a prompt', async () => {
@@ -80,17 +83,22 @@ it('should get a prompt', async () => {
 
   const res = await get(`${baseURL}user/${savedUser.uuid}/associate/prompt?timestamp=${timestamp}&signature=${signature}`);
   savedPrompt = res.body.prompt;
-  res.body.prompt.prompt.length.should.equal(4);
+console.log(res.body);
+  res.body.prompt.length.should.equal(4);
 });
 
 it('should post a signed prompt', async () => {
   keysToReturn = keys2;
+
+console.log('savedUser2.uuid is: ' + savedUser2.uuid);
   const payload = {
     timestamp: new Date().getTime() + '',
     uuid: savedUser2.uuid,
     pubKey: keys2.pubKey,
     prompt: savedPrompt
   };
+
+console.log('signed prompt message: ' + payload.timestamp + payload.uuid + payload.pubKey + payload.prompt);
 
   payload.signature = await sessionless.sign(payload.timestamp + payload.uuid + payload.pubKey + payload.prompt);
 
@@ -99,12 +107,14 @@ it('should post a signed prompt', async () => {
 });
 
 it('should get a user with a prompt', async () => {
-  keysToUse = keys;
+  keysToReturn = keys;
   const timestamp = new Date().getTime() + '';
   const signature = await sessionless.sign(timestamp + savedUser.uuid);
   
   const res = await get(`${baseURL}user/${savedUser.uuid}?timestamp=${timestamp}&signature=${signature}`);
   savedUser = res.body;
+console.log(savedUser.pendingPrompts);
+console.log(savedUser.pendingPrompts[savedPrompt]);
   res.body.pendingPrompts[savedPrompt].newUUID.should.equal(savedUser2.uuid);
 });
 
@@ -112,21 +122,25 @@ it('should associate two users', async () => {
   keysToReturn = keys;
   const payload = {
     timestamp: new Date().getTime() + '',
+    newTimestamp: savedUser.pendingPrompts[savedPrompt].newTimestamp,
     newUUID: savedUser.pendingPrompts[savedPrompt].newUUID,
     newPubKey: savedUser.pendingPrompts[savedPrompt].newPubKey,
     prompt: savedPrompt,
     newSignature: savedUser.pendingPrompts[savedPrompt].newSignature
   };
 
-  const message = payload.timestamp + payload.newUUID + payload.newPubKey + payload.prompt + payload.newSignature;
+console.log('new uuid ends up being: ' + payload.newUUID);
+
+  const message = payload.newTimestamp + payload.newUUID + payload.newPubKey + payload.prompt;
+console.log('associating user message: ' + message);
   payload.signature = await sessionless.sign(message);
 
   const res = await post(`${baseURL}user/${savedUser.uuid}/associate`, payload);
-  res.body.keys.interactiveKeys[savedUser2.uuid].length.should.equal(32);
+  res.body.keys.interactingKeys[savedUser2.uuid].length.should.equal(66);
 });
 
 it('should send a message', async () => {
-  keysToUse = keys2;
+  keysToReturn = keys2;
   const payload = {
     timestamp: new Date().getTime() + '',
     senderUUID: savedUser2.uuid,
@@ -141,7 +155,7 @@ it('should send a message', async () => {
 });
 
 it('should get messages', async () => {
-  keysToUse = keys;
+  keysToReturn = keys;
   const timestamp = new Date().getTime() + '';
   const message = timestamp + savedUser.uuid;
   const signature = await sessionless.sign(message);

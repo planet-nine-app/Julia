@@ -2,7 +2,9 @@ import db from '../persistence/db.js';
 
 const messaging = {
   messageUser: async (sender, receiver, message) => {
-    if(!sender.keys.interactiveKeys[receiver.uuid] || !receiver.keys.interactiveKeys[sender.uuid]) {
+console.log('sender: ' + JSON.stringify(sender));
+console.log('receiver: ' + JSON.stringify(receiver));
+    if(!sender.keys.interactingKeys[receiver.uuid] || !receiver.keys.interactingKeys[sender.uuid]) {
       return false;
     }
     return await db.messageUser(sender, receiver, message);

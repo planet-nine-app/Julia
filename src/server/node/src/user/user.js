@@ -1,21 +1,21 @@
 import db from '../persistence/db.js';
 
 const user = {
-  getUser: async (uuid, signature, timestamp) => {
-    const user = await db.getUser(uuid);
-    return user;
+  getUser: async (uuid) => {
+    const foundUser = await db.getUser(uuid);
+    return foundUser;
   }, 
 
-  putUser: async (pubKey, user) => {
-    const uuid = await db.putUser(pubKey, user);
+  putUser: async (newUser) => {
+    const uuid = await db.putUser(newUser);
 
-    user.uuid = uuid; 
+    newUser.uuid = uuid; 
 
-    return user;
+    return newUser;
   },
   
-  deleteUser: async (user) => {
-    return (await db.deleteUser(user));
+  deleteUser: async (userToDelete) => {
+    return (await db.deleteUser(userToDelete));
   }
 };
 
