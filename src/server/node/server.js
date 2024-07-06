@@ -117,10 +117,9 @@ app.delete('/user/:uuid', (req, res) => {
     return res.send({error: 'auth error'});
   }
 
-  const associatedUser = await getUser(associatedUUID);
-  const association = await associate.deleteAssociation(req.user, associatedUser);
-
-  res.send(association);
+  const result = await user.deleteUser(req.user);
+  
+  res.send({success: result});
 });
 
 app.post('/message', (req, res) => {
