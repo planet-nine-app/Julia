@@ -18,12 +18,15 @@ const associate = {
     const uuid = user.uuid;
     const prompt = randomLetters(4);
 
-    const message = timestamp + uuid + prompt;
-    const signature = await sessionless.sign(message); 
+    /**
+     * need to think more about this
+     */
+    //const message = timestamp + uuid + prompt;
+    //const signature = await sessionless.sign(message); 
 
-    await db.startPrompt(user, prompt);
+    user.pendingPrompts = await db.startPrompt(user, prompt);
     
-    return {timestamp, uuid, prompt, signature};
+    return user;
   },
 
   saveSignedPrompt: async (user, saveSignedPrompt) => {

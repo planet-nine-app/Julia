@@ -22,22 +22,33 @@ app.use((req, res, next) => {
   const requestTime = +req.query.timestamp || +req.body.timestamp;
   const now = new Date().getTime();
   if(Math.abs(now - requestTime) > config.allowedTimeDifference) {
-    return res.send(new Error('no time like the present'));
+    return res.send({error: 'no time like the present'});
   }
   next();
 });
 
 app.put('/user/create', async (req, res) => {
+console.log(req.body);
   const pubKey = req.body.pubKey;
   const message = req.body.timestamp +  pubKey;
+console.log(message);
   const signature = req.body.signature;
+console.log(signature);
+console.log(message);
+console.log(pubKey);
+console.log(typeof signature);
+console.log(typeof message);
+console.log(typeof pubKey);
+console.log('foo');
   
   if(!signature || !sessionless.verifySignature(signature, message, pubKey)) {
     res.status(403);
     return res.send({error: 'auth error'});
   }
+console.log('bar');
 
   const foundUser = await user.putUser(req.body.user);
+console.log(`Sending back: ${JSON.stringify(foundUser)}`);
   res.send(foundUser);
 });
 
@@ -70,22 +81,29 @@ app.get('/user/:uuid/associate/prompt', async (req, res) => {
     return res.send({error: 'auth error'});
   }
 
-  const prompt = await associate.getPrompt(foundUser);
+  const userWithPrompt = await associate.getPrompt(foundUser);
 
-  res.send(prompt);
+console.log('sending back: ', userWithPrompt);
+
+  res.send(userWithPrompt);
 });
 
 app.post('/user/:uuid/associate/signedPrompt', async (req, res) => {
+console.log('rew.body is', req.body);
   const uuid = req.params.uuid;
   const timestamp = req.body.timestamp;
   const pubKey = req.body.pubKey;
   const prompt = req.body.prompt;
   const signature = req.body.signature;
   const message = timestamp + uuid + pubKey + prompt;
+console.log(message);
 
   const foundUser = await user.getUser(req.params.uuid);
 
+console.log('after found user');
+
   if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
+console.log('auth failed');
     res.status(403);
     return res.send({error: 'auth error'});
   }

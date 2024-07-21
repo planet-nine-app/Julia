@@ -82,9 +82,9 @@ it('should get a prompt', async () => {
   const signature = await sessionless.sign(timestamp + savedUser.uuid);
 
   const res = await get(`${baseURL}user/${savedUser.uuid}/associate/prompt?timestamp=${timestamp}&signature=${signature}`);
-  savedPrompt = res.body.prompt;
 console.log(res.body);
-  res.body.prompt.length.should.equal(4);
+  savedPrompt = Object.keys(res.body.pendingPrompts).pop();
+  savedPrompt.length.should.equal(4);
 });
 
 it('should post a signed prompt', async () => {

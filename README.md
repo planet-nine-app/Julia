@@ -77,7 +77,7 @@ It doesn't get much CRUDier than this API:
 
 > | http code     | content-type                      | response                                                            |
 > |---------------|-----------------------------------|---------------------------------------------------------------------|
-> | `200`         | `application/json`                | `{"keys": [{"userUUID": <uuid>, "pubKey": <pubKey>}]`   |
+> | `200`         | `application/json`                | `{"keys": {"interactingKeys": [{"userUUID": <uuid>, "pubKey": <pubKey>}], "coordinatingKeys": []}`   |
 > | `406`         | `application/json`                | `{"code":"406","message":"Not acceptable"}`                            |
 
 ##### Example cURL
@@ -227,7 +227,7 @@ It doesn't get much CRUDier than this API:
 ### The following are temporarily part of Julia and may move to another repo at some point.
 
 <details>
-  <summary><code>POST</code> <code><b>/message</b></code> <code>Returns whether last saved hash matches sent hash</code></summary>
+  <summary><code>POST</code> <code><b>/message</b></code> <code>Posts a message</code></summary>
 
 ##### Parameters
 
@@ -236,7 +236,7 @@ It doesn't get much CRUDier than this API:
 > | timestamp    |  true     | string                  | in a production system timestamps narrow the risk of replay attacks  |
 > | senderUUID   |  true     | string                  | the sender's uuid
 > | receiverUUID |  true     | string                  | the receiver's uuid
-> | message      |  true     | string                  | the message to post  |
+> | content      |  true     | string                  | the content to post  |
 > | signature    |  true     | string (signature)      | the signature from sessionless for the message  |
 
 

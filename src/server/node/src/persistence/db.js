@@ -41,10 +41,20 @@ console.log(uuid);
   },
 
   startPrompt: async (user, prompt) => {
-    await client.set(`prompt:${prompt}`, JSON.stringify({timestamp: new Date().getTime(), prompter: user.uuid}));
+    const promptToAdd = {
+      timestamp: new Date().getTime() + '', 
+      prompter: user.uuid
+    };
+
+    await client.set(`prompt:${prompt}`, JSON.stringify(promptToAdd));
     await client.sendCommand(['SADD', `prompt:${user.uuid}`, `prompt:${prompt}`]);
 
-    return true;
+    const pendingPrompts = await db.getPendingPrompts(user);
+    pendingPrompts[prompt] = promptToAdd;
+
+console.log('pendingPrompts', pendingPrompts);
+
+    return pendingPrompts;
   },
 
   saveSignedPrompt: async (user, saveSignedPrompt) => {
