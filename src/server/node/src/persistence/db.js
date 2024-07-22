@@ -59,10 +59,16 @@ console.log('pendingPrompts', pendingPrompts);
 
   saveSignedPrompt: async (user, saveSignedPrompt) => {
     const currentPromptString = await client.get(`prompt:${saveSignedPrompt.prompt}`);
+    if(!currentPromptString) {
+console.log('no prompt');
+      return false;
+    }
     const currentPrompt = JSON.parse(currentPromptString);
     const now = new Date().getTime();
 
     if(now - +currentPrompt.timestamp > config.promptTimeLimit) {
+console.log('timestamp isn\'t good anymore');
+      await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]);
       await client.sendCommand(['DEL', `prompt:${saveSignedPrompt.prompt}`]);
       return false;
     }
@@ -88,6 +94,10 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
     let prompts = {};
     for(let i = 0; i < promptKeys.length; i++) {
       const prompt = await client.get(promptKeys[i]);
+      if(!prompt) {
+        await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]); 
+        continue;
+      }
       const parsedPrompt = JSON.parse(prompt); 
       if(parsedPrompt.newPubKey) {
         prompts[parsedPrompt.prompt] = parsedPrompt;

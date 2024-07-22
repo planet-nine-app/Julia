@@ -167,6 +167,8 @@ It doesn't get much CRUDier than this API:
 >  curl -X DELETE https://www.juliaswitch.com/associated/<associated uuid>/user/<uuid>
 > ```
 
+</details>
+
 <details>
   <summary><code>DELETE</code> <code><b>/user/:uuid</b></code> <code>Deletes a uuid and pubKey</code></summary>
 

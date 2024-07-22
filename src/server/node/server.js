@@ -111,6 +111,7 @@ console.log('auth failed');
 console.log('uuid here is: ' + req.body.uuid);
   
   const result = await associate.saveSignedPrompt(foundUser, req.body);
+console.log('should return success: ' + result);
   res.send({success: result});
 });
 
