@@ -127,6 +127,13 @@ app.post('/user/:uuid/associate', async (req, res) => {
 
   const foundUser = await user.getUser(req.params.uuid);
 
+  if(!foundUser.pendingPrompts[prompt] || 
+     !(foundUser.pendingPrompts[prompt].prompter === foundUser.uuid && 
+     foundUser.pendingPrompts[prompt].newUUID === newUUID)) {
+    res.status(404);
+    return res.send({error: 'prompt not found'});
+  }
+
 console.log('message here is: ' + message);
 
   if(!signature || !sessionless.associate(signature, message, foundUser.pubKey, newSignature, message, newPubKey)) {
@@ -136,8 +143,10 @@ console.log('message here is: ' + message);
 
   const associatedUser = await user.getUser(newUUID);
   const updatedUser = await associate.associate(foundUser, associatedUser);
+  await associate.removePrompt(foundUser, prompt);
+  const doubleUpdatedUser = await user.getUser(uuid);
 
-  res.send(updatedUser);
+  res.send(doubleUpdatedUser);
 });
 
 app.delete('/associated/:associatedUUID/user/:uuid', async (req, res) => {

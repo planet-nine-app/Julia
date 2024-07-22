@@ -39,6 +39,10 @@ const associate = {
 
   deleteAssociation: async (user, associatedUser) => {
     return (await db.deleteAssociation(user, associatedUser));
+  },
+
+  removePrompt: async (user, prompt) => {
+    return (await db.removePrompt(user, prompt));
   }
 };
 

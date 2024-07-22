@@ -115,6 +115,12 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
     return user;
   },
 
+  removePrompt: async (user, prompt) => {
+    await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]); 
+    await client.sendCommand(['DEL', `prompt:${prompt}`]);
+    
+  },
+
   deleteAssociation: async (user, associatedUser) => {
     delete user.keys.interactingKeys[associatedUser.uuid];
     delete associatedUser.keys.interactingKeys[user.uuid];
