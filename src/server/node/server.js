@@ -193,16 +193,20 @@ app.post('/message', async (req, res) => {
   const receiverUUID = req.body.receiverUUID;
   const message = req.body.message;
   const signature = req.body.signature;
-  const msg = timestamp + senderUUID + receiverUUID;
+  const msg = timestamp + senderUUID + receiverUUID + message;
 
   const sender = await user.getUser(senderUUID);
 
+console.log('got stuff');
+
   if(!signature || !sessionless.verifySignature(signature, msg, sender.pubKey)) {
+console.log('auth error');
     res.status(403);
     return res.send({error: 'auth error'});
   }
 
   const receiver = await user.getUser(receiverUUID);
+console.log('got receiver');
 
   if(!receiver) {
     return res.send({success: false});

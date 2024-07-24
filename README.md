@@ -14,7 +14,7 @@ sequenceDiagram
     Client->>+Server: Register User
     Server->>+DB: Save userUUID
     Server->>+Client: Sends userUUID
-    Client->>+Server: Sends pubKey of second client to associate
+    SecondClient->>+Server: Sends pubKey of second client to associate
     Server->>+DB: Associates pubKey to user's uuid
     SecondClient->>+Server: Second client sends message for first client
     Server->>+DB: Checks if SecondClient is associated with first client
