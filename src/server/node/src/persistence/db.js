@@ -15,6 +15,7 @@ console.log(uuid);
     const currentKeys = await sessionless.getKeys();
     parsedUser.keys.interactingKeys.julia = currentKeys.pubKey;
     parsedUser.pendingPrompts = await db.getPendingPrompts(parsedUser);
+    parsedUser.messages = await db.getMessages(parsedUser);
     return parsedUser; 
   },
 
@@ -129,16 +130,27 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
   },
 
   messageUser: async (sender, receiver, message) => {
-    await client.sendCommand(['SADD', `${sender.uuid}:messages`, message]);
-    await client.sendCommand(['SADD', `${receiver.uuid}:messages`, message]);
+    const messageJSON = JSON.stringify(message);
+    await client.sendCommand(['SADD', `${sender.uuid}:messages`, messageJSON]);
+    await client.sendCommand(['SADD', `${receiver.uuid}:messages`, messageJSON]);
 
     return true;
   },
 
   getMessages: async (user) => {
     const messages = await client.sendCommand(['SMEMBERS', `${user.uuid}:messages`]);
+console.log(messages);
     
-    return messages;
+    if(!messages || messages.length === 0) {
+      return [];
+    }
+
+    const parsedMessages = JSON.parse(messages);
+    if(!Array.isArray(parsedMessages)) {
+      return [parsedMessages];
+    }
+
+    return parsedMessages;
   }
 };
 

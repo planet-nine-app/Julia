@@ -212,7 +212,7 @@ console.log('got receiver');
     return res.send({success: false});
   }
 
-  const result = await messaging.messageUser(sender, receiver, message);
+  const result = await messaging.messageUser(sender, receiver, req.body);
 
   res.send({success: result});
 });
