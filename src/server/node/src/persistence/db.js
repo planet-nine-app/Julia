@@ -10,11 +10,12 @@ const db = {
   getUser: async (uuid) => {
     const user = await client.get(`user:${uuid}`);
     const parsedUser = JSON.parse(user);
-console.log(`parsedUser: ${JSON.stringify(parsedUser)}`);
-console.log(uuid);
+//console.log(`parsedUser: ${JSON.stringify(parsedUser)}`);
+//console.log(uuid);
     const currentKeys = await sessionless.getKeys();
     parsedUser.keys.interactingKeys.julia = currentKeys.pubKey;
     parsedUser.pendingPrompts = await db.getPendingPrompts(parsedUser);
+//console.log(`pendingPrompts: ${JSON.stringify(parsedUser.pendingPrompts)}`);
     parsedUser.messages = await db.getMessages(parsedUser);
     return parsedUser; 
   },
@@ -44,7 +45,8 @@ console.log(uuid);
   startPrompt: async (user, prompt) => {
     const promptToAdd = {
       timestamp: new Date().getTime() + '', 
-      prompter: user.uuid
+      prompter: user.uuid,
+      prompt
     };
 
     await client.set(`prompt:${prompt}`, JSON.stringify(promptToAdd));
@@ -94,7 +96,10 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
     const promptKeys = await client.sendCommand(['SMEMBERS', `prompt:${user.uuid}`]);
     let prompts = {};
     for(let i = 0; i < promptKeys.length; i++) {
-      const prompt = await client.get(promptKeys[i]);
+/*      const prompt = promptKeys[i].split(':')[1];
+      await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]);
+      await client.sendCommand(['DEL', `prompt:${prompt}`]);
+*/      const prompt = await client.get(promptKeys[i]);
       if(!prompt) {
         await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]); 
         continue;
@@ -125,6 +130,9 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
   deleteAssociation: async (user, associatedUser) => {
     delete user.keys.interactingKeys[associatedUser.uuid];
     delete associatedUser.keys.interactingKeys[user.uuid];
+
+    await db.saveUser(user);
+    await db.saveUser(associatedUser);
 
     return true;
   },

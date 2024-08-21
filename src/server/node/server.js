@@ -83,13 +83,20 @@ app.get('/user/:uuid/associate/prompt', async (req, res) => {
 
   const userWithPrompt = await associate.getPrompt(foundUser);
 
-console.log('sending back: ', userWithPrompt);
+console.log('\n\n\n');
+console.log('Start with: ', userWithPrompt.pendingPrompts);
+console.log('\n\n\n');
+
+//console.log('sending back: ', userWithPrompt);
 
   res.send(userWithPrompt);
 });
 
 app.post('/user/:uuid/associate/signedPrompt', async (req, res) => {
-console.log('rew.body is', req.body);
+//console.log('rew.body is', req.body);
+console.log('\n\n\n');
+console.log('signed prompt', req.body.prompt);
+console.log('\n\n\n');
   const uuid = req.params.uuid;
   const timestamp = req.body.timestamp;
   const pubKey = req.body.pubKey;
@@ -116,6 +123,9 @@ console.log('should return success: ' + result);
 });
 
 app.post('/user/:uuid/associate', async (req, res) => {
+console.log("\n\n\n\n\n\n");
+console.log('associated prompt', req.body.prompt);
+console.log("\n\n\n\n\n\n");
   const uuid = req.params.uuid;
   const newTimestamp = req.body.newTimestamp;
   const newUUID = req.body.newUUID;
@@ -130,6 +140,7 @@ app.post('/user/:uuid/associate', async (req, res) => {
   if(!foundUser.pendingPrompts[prompt] || 
      !(foundUser.pendingPrompts[prompt].prompter === foundUser.uuid && 
      foundUser.pendingPrompts[prompt].newUUID === newUUID)) {
+console.log("first check failed");
     res.status(404);
     return res.send({error: 'prompt not found'});
   }
@@ -137,6 +148,11 @@ app.post('/user/:uuid/associate', async (req, res) => {
 console.log('message here is: ' + message);
 
   if(!signature || !sessionless.associate(signature, message, foundUser.pubKey, newSignature, message, newPubKey)) {
+console.log('association signatures failes');
+console.log(signature);
+console.log(newSignature);
+console.log(foundUser.pubKey);
+console.log(newPubKey);
     res.status(403);
     return res.send({error: 'auth error'});
   } 
@@ -145,6 +161,8 @@ console.log('message here is: ' + message);
   const updatedUser = await associate.associate(foundUser, associatedUser);
   await associate.removePrompt(foundUser, prompt);
   const doubleUpdatedUser = await user.getUser(uuid);
+
+console.log("sending back doubleUpdatedUser", doubleUpdatedUser);
 
   res.send(doubleUpdatedUser);
 });
@@ -163,10 +181,17 @@ app.delete('/associated/:associatedUUID/user/:uuid', async (req, res) => {
     return res.send({error: 'auth error'});
   }
 
-  const associatedUser = await getUser(associatedUUID);
-  const association = await associate.deleteAssociation(foundUser, associatedUser);
+  const associatedUser = await user.getUser(associatedUUID);
+  const disassociated = await associate.deleteAssociation(foundUser, associatedUser);
 
-  res.send(association);
+  if(disassociated) {
+console.log("disassociated!");
+    const updatedUser = await user.getUser(req.params.uuid);
+    return res.send(updatedUser);
+  }
+console.log("It failed");
+
+  res.send(foundUser);
 });
 
 app.delete('/user/:uuid', async (req, res) => {

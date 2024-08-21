@@ -4,6 +4,7 @@ import sessionless from 'sessionless-node';
 import superAgent from 'superagent';
 
 const baseURL = 'http://127.0.0.1:3000/';
+//const baseURL = 'https://juliaswitch.com/';
 
 const get = async function(path) {
   console.info("Getting " + path);
@@ -11,12 +12,13 @@ const get = async function(path) {
 };
 
 const put = async function(path, body) {
-  //console.info("Putting " + path);
+  console.info("Putting " + path);
   return await superAgent.put(path).send(body).set('Content-Type', 'application/json');
 };
 
 const post = async function(path, body) {
-  //console.info("Posting " + path);
+  console.info("Posting " + path);
+console.log(body);
   return await superAgent.post(path).send(body).set('Content-Type', 'application/json');
 };
 
@@ -136,6 +138,7 @@ console.log('associating user message: ' + message);
   payload.signature = await sessionless.sign(message);
 
   const res = await post(`${baseURL}user/${savedUser.uuid}/associate`, payload);
+console.log(res.body);
   res.body.keys.interactingKeys[savedUser2.uuid].length.should.equal(66);
 });
 
@@ -148,9 +151,10 @@ it('should send a message', async () => {
     message: 'Hello this is a message'
   };
 
-  payload.signature = await sessionless.sign(payload.timestamp + payload.senderUUID + payload.receiverUUID);
+  payload.signature = await sessionless.sign(payload.timestamp + payload.senderUUID + payload.receiverUUID + payload.message);
 
   const res = await post(`${baseURL}message`, payload);
+console.log(`res from send message is`, res.body);
   res.body.success.should.equal(true);
 });
 
@@ -165,10 +169,32 @@ it('should get messages', async () => {
 });
 
 it('should delete association', async () => {
+  const timestamp = new Date().getTime() + '';
+  const associatedUUID = savedUser2.uuid;
+  const message = timestamp + associatedUUID + savedUser.uuid;
+  const signature = await sessionless.sign(message);
+ 
+  const payload = {
+    timestamp,
+    signature
+  };
 
+  const res = await _delete(`${baseURL}associated/${savedUser2.uuid}/user/${savedUser.uuid}`, payload);
+  const noKey = res.body.keys.interactingKeys[savedUser2.uuid] === undefined;
+  noKey.should.equal(true);;
 });
 
 it('should delete a user', async () => {
+  const timestamp = new Date().getTime() + '';
+  const message = timestamp + savedUser.uuid;
+  const signature = await sessionless.sign(message);
 
+  const payload = {
+    timestamp,
+    signature
+  };
+
+  const res = await _delete(`${baseURL}user/${savedUser.uuid}`, payload);
+  res.body.success.should.equal(true);
 });
 
