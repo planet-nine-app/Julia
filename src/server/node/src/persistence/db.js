@@ -9,14 +9,22 @@ const client = await createClient()
 const db = {
   getUser: async (uuid) => {
     const user = await client.get(`user:${uuid}`);
-    const parsedUser = JSON.parse(user);
-//console.log(`parsedUser: ${JSON.stringify(parsedUser)}`);
-//console.log(uuid);
+    let parsedUser = JSON.parse(user);
+console.log(`parsedUser: ${JSON.stringify(parsedUser)}`);
+console.log(uuid);
     const currentKeys = await sessionless.getKeys();
+if(!parsedUser) {
+  parsedUser = {uuid};
+  parsedUser.keys = { // This should only be the case for Julia until I update how that works.
+    interactingKeys: {},
+    coordinatingKeys: {}
+  };
+}
     parsedUser.keys.interactingKeys.julia = currentKeys.pubKey;
     parsedUser.pendingPrompts = await db.getPendingPrompts(parsedUser);
 //console.log(`pendingPrompts: ${JSON.stringify(parsedUser.pendingPrompts)}`);
     parsedUser.messages = await db.getMessages(parsedUser);
+console.log('messages: ', parsedUser.messages);
     return parsedUser; 
   },
 
@@ -146,17 +154,18 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
   },
 
   getMessages: async (user) => {
-    const messages = await client.sendCommand(['SMEMBERS', `${user.uuid}:messages`]);
+    let messages = await client.sendCommand(['SMEMBERS', `${user.uuid}:messages`]);
 console.log(messages);
     
     if(!messages || messages.length === 0) {
       return [];
     }
 
-    const parsedMessages = JSON.parse(messages);
-    if(!Array.isArray(parsedMessages)) {
-      return [parsedMessages];
+    if(messages[0] !== '[') {
+      messages = `[${messages}]`;
     }
+
+    const parsedMessages = JSON.parse(messages);
 
     return parsedMessages;
   }
