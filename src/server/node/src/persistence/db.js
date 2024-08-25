@@ -9,6 +9,9 @@ const client = await createClient()
 const db = {
   getUser: async (uuid) => {
     const user = await client.get(`user:${uuid}`);
+    if(!user) {
+      throw new Error('not found');
+    }
     let parsedUser = JSON.parse(user);
 console.log(`parsedUser: ${JSON.stringify(parsedUser)}`);
 console.log(uuid);
