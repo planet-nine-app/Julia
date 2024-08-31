@@ -80,17 +80,21 @@ app.get('/user/:uuid', async (req, res) => {
 
 app.get('/user/:uuid/associate/prompt', async (req, res) => {
   try {
+console.log('getting a prompt');
     const uuid = req.params.uuid;
     const timestamp = req.query.timestamp;
     const signature = req.query.signature;
     const message = timestamp + uuid;
 
     const foundUser = await user.getUser(req.params.uuid);
+console.log('found a user');
 
     if(!signature || !sessionless.verifySignature(signature, message, foundUser.pubKey)) {
+console.log('here for some reason');
       res.status(403);
       return res.send({error: 'auth error'});
     }
+console.log('userWithPrompt coming');
 
     const userWithPrompt = await associate.getPrompt(foundUser);
 
@@ -102,6 +106,7 @@ app.get('/user/:uuid/associate/prompt', async (req, res) => {
 
     res.send(userWithPrompt);
   } catch(err) {
+console.warn(err);
     res.status(404);
     res.send({error: 'not found'});
   }

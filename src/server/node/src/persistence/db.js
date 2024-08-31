@@ -1,5 +1,5 @@
 import config from '../../config/local.js';
-import { createClient } from 'redis';
+import { createClient } from './client.js';
 import sessionless from 'sessionless-node';
   
 const client = await createClient()
@@ -24,8 +24,10 @@ if(!parsedUser) {
   };
 }
     parsedUser.keys.interactingKeys.julia = currentKeys.pubKey;
+console.log('about to get pendingPrompts');
     parsedUser.pendingPrompts = await db.getPendingPrompts(parsedUser);
-//console.log(`pendingPrompts: ${JSON.stringify(parsedUser.pendingPrompts)}`);
+console.log(`pendingPrompts: ${JSON.stringify(parsedUser.pendingPrompts)}`);
+console.log('messages next');
     parsedUser.messages = await db.getMessages(parsedUser);
 console.log('messages: ', parsedUser.messages);
     return parsedUser; 
@@ -48,7 +50,7 @@ console.log('messages: ', parsedUser.messages);
   },
 
   deleteUser: async (user) => {
-    const resp = await client.sendCommand(['DEL', `user:${user.uuid}`]);
+    const resp = await client.del(`user:${user.uuid}`);
 
     return true;
   },
@@ -61,7 +63,10 @@ console.log('messages: ', parsedUser.messages);
     };
 
     await client.set(`prompt:${prompt}`, JSON.stringify(promptToAdd));
-    await client.sendCommand(['SADD', `prompt:${user.uuid}`, `prompt:${prompt}`]);
+    const promptSet = (await client.get(`prompt:${user.uuid}`)) || {};
+    promptSet[prompt] = promptToAdd;;
+    await client.set(`prompt:${user.uuid}`, JSON.stringify(promptSet));
+console.log('set', `prompt:${user.uuid}`, JSON.stringify(promptSet));
 
     const pendingPrompts = await db.getPendingPrompts(user);
     pendingPrompts[prompt] = promptToAdd;
@@ -82,8 +87,10 @@ console.log('no prompt');
 
     if(now - +currentPrompt.timestamp > config.promptTimeLimit) {
 console.log('timestamp isn\'t good anymore');
-      await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]);
-      await client.sendCommand(['DEL', `prompt:${saveSignedPrompt.prompt}`]);
+      const promptSet = (await client.get(`prompt:${user.uuid}`)) || {};
+      delete promptSet[saveSignedPrompt.prompt];
+      await client.set(`prompt:${user.uuid}`, JSON.stringify(promptSet));
+      await client.del(`prompt:${saveSignedPrompt.prompt}`);
       return false;
     }
 
@@ -99,25 +106,32 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
     currentPrompt.newSignature = saveSignedPrompt.signature;
 
     await client.set(`prompt:${saveSignedPrompt.prompt}`, JSON.stringify(currentPrompt));
+console.log('signed', `prompt:${saveSignedPrompt.prompt}`, JSON.stringify(currentPrompt));
     
     return true;
   },
 
   getPendingPrompts: async (user) => {
-    const promptKeys = await client.sendCommand(['SMEMBERS', `prompt:${user.uuid}`]);
+    const promptSetJSON = (await client.get(`prompt:${user.uuid}`)) || '{}';
+    const promptSet = JSON.parse(promptSetJSON);
+console.log(`prompt:${user.uuid}`);
+console.log(promptSet);
+    const promptKeys = Object.keys(promptSet);
     let prompts = {};
     for(let i = 0; i < promptKeys.length; i++) {
 /*      const prompt = promptKeys[i].split(':')[1];
       await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]);
       await client.sendCommand(['DEL', `prompt:${prompt}`]);
-*/      const prompt = await client.get(promptKeys[i]);
+*/      const prompt = await client.get(`prompt:${promptKeys[i]}`);
+console.log('PROMPT', `prompt:${promptKeys[i]}`);
       if(!prompt) {
-        await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]); 
         continue;
       }
       const parsedPrompt = JSON.parse(prompt); 
       if(parsedPrompt.newPubKey) {
         prompts[parsedPrompt.prompt] = parsedPrompt;
+      } else {
+console.log('THE PROBLEM IS THAT newPubKey DOESN\'T EXIST');
       }
     }
 
@@ -133,9 +147,10 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
   },
 
   removePrompt: async (user, prompt) => {
-    await client.sendCommand(['SREM', `prompt:${user.uuid}`, `prompt:${prompt}`]); 
-    await client.sendCommand(['DEL', `prompt:${prompt}`]);
-    
+    const promptSet = (await client.get(`prompt:${user.uuid}`)) || {};
+    delete promptSet[prompt];
+    await client.set(`prompt:${user.uuid}`, JSON.stringify(promptSet));
+    await client.del(`prompt:${prompt}`);   
   },
 
   deleteAssociation: async (user, associatedUser) => {
@@ -149,28 +164,21 @@ console.log('uuid on currentPrompt is: ' + currentPrompt.newUUID);
   },
 
   messageUser: async (sender, receiver, message) => {
-    const messageJSON = JSON.stringify(message);
-    await client.sendCommand(['SADD', `${sender.uuid}:messages`, messageJSON]);
-    await client.sendCommand(['SADD', `${receiver.uuid}:messages`, messageJSON]);
+    const senderMessages =  await client.get(`${sender.uuid}:messages`) || [];
+    const receiverMessages = await client.get(`${receiver.uuid}:messages`) || [];
+
+    senderMessages.push(message);
+    receiverMessages.push(message);
+  
+    await client.set(`${sender.uuid}:messages`, JSON.stringify(senderMessages));
+    await client.set(`${receiver.uuid}:messages`, JSON.stringify(receiverMessages));
 
     return true;
   },
 
   getMessages: async (user) => {
-    let messages = await client.sendCommand(['SMEMBERS', `${user.uuid}:messages`]);
-console.log(messages);
-    
-    if(!messages || messages.length === 0) {
-      return [];
-    }
-
-    if(messages[0] !== '[') {
-      messages = `[${messages}]`;
-    }
-
-    const parsedMessages = JSON.parse(messages);
-
-    return parsedMessages;
+    const messages = (await client.get(`${user.uuid}:messages`)) || '[]';
+    return JSON.parse(messages);
   }
 };
 
