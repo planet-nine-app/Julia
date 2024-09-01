@@ -1,5 +1,6 @@
 import config from './config/local.js';
 import express from 'express';
+import cors from 'cors';
 import user from './src/user/user.js';
 import associate from './src/associate/associate.js';
 import messaging from './src/messaging/messaging.js';
@@ -16,6 +17,7 @@ const gk = () => {
 sessionless.generateKeys(sk, gk);
 
 const app = express();
+app.use(cors());
 app.use(express.json());
 
 app.use((req, res, next) => {
@@ -311,4 +313,4 @@ app.get('/messages/user/:uuid', async (req, res) => {
 
 app.listen(3000);
 
-console.log('server listening on port 3000');
+console.log('julia\'s ready for connections');
