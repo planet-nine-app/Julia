@@ -75,6 +75,7 @@ app.get('/user/:uuid', async (req, res) => {
 
     res.send(foundUser);
   } catch(err) {
+console.log(err);
     res.status(404);
     res.send({error: 'not found'});
   }

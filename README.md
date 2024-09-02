@@ -310,16 +310,23 @@ uuid, and pubKey should have unique constraints (Sessionless generated keys and 
 Client SDKs need to generate keys via Sessionless, and implement the networking to interface with the server. 
 To do so they should implement the following methods:
 
-`checkForUser()` - Checks if keys have been generated, and a uuid exists (all of these should be stored in secure storage of the client)--this is the Sessionless check for if a user is logged in.
+`createUser(saveKeys, getKeys, [optionalUser])` - Should generate keys, save them appropriately client side, and PUT to /user/create.
 
-`createUser()` - Should generate keys, save them appropriately client side, and PUT to /user/create.
+`getUser(uuid)` - Gets a user
 
-`syncKeys()` - Syncs associated keys with the server
+`getPrompt(uuid)` - Gets a one-time use code for associating keys
 
-`deleteKey()` - Deletes an associated key
+`signPrompt(uuid, prompt)` - Posts a signed prompt
+
+`associate(uuid, signedPrompt)` - associates two keys
+
+`deleteKey(uuid, associatedUUID)` - Deletes an associated key
+
+`postMessage(uuid, receiverUUID, contents)` - Posts a message
+
+`getMessages(uuid)` - Gets a user's messages
 
 `deleteUser(uuid)` - Should DELETE a user by calling /user/:uuid.
-
 
 ## Use cases
 
