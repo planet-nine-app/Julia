@@ -1,0 +1,24 @@
+{
+  "name": "julia-js",
+  "version": "0.0.1",
+  "description": "JavaScript client for Julia service",
+  "main": "julia.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/planet-nine-app/julia.git"
+  },
+  "type": "module",
+  "author": "planetnineisaspaceship",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/planet-nine-app/julia/issues"
+  },
+  "homepage": "https://github.com/planet-nine-app/julia#readme",
+  "dependencies": {
+    "node-fetch": "^3.3.2",
+    "sessionless-node": "^0.11.0"
+  }
+}
