@@ -4,6 +4,7 @@ import cors from 'cors';
 import user from './src/user/user.js';
 import associate from './src/associate/associate.js';
 import messaging from './src/messaging/messaging.js';
+import MAGIC from './src/magic/magic.js';
 import sessionless from 'sessionless-node';
 
 const sk = (keys) => {
@@ -31,27 +32,16 @@ app.use((req, res, next) => {
 
 app.put('/user/create', async (req, res) => {
   try {
-  console.log(req.body);
     const pubKey = req.body.pubKey;
     const message = req.body.timestamp +  pubKey;
-  console.log(message);
     const signature = req.body.signature;
-  console.log(signature);
-  console.log(message);
-  console.log(pubKey);
-  console.log(typeof signature);
-  console.log(typeof message);
-  console.log(typeof pubKey);
-  console.log('foo');
-    
+   
     if(!signature || !sessionless.verifySignature(signature, message, pubKey)) {
       res.status(403);
       return res.send({error: 'auth error'});
     }
-  console.log('bar');
 
     const foundUser = await user.putUser(req.body.user);
-  console.log(`Sending back: ${JSON.stringify(foundUser)}`);
     res.send(foundUser);
   } catch(err) {
     res.status(404);
@@ -194,6 +184,28 @@ app.post('/user/:uuid/associate', async (req, res) => {
   console.log("sending back doubleUpdatedUser", doubleUpdatedUser);
 
     res.send(doubleUpdatedUser);
+  } catch(err) {
+    res.status(404);
+    res.send({error: 'not found'});
+  }
+});
+
+app.post('/magic/spell/:spellName', async (req, res) => {
+  try {
+    const spellName = req.params.spell;
+    const spell = req.body.spell;
+    
+    switch(spellName) {
+      case 'joinup': const resp = await MAGIC.joinup(spell);
+        return res.send(resp);
+        break;
+      case 'linkup': const resp = await MAGIC.linkup(spell);
+	return res.send(resp);
+	break;
+    }
+
+    res.status(404);
+    res.send({error: 'spell not found'});
   } catch(err) {
     res.status(404);
     res.send({error: 'not found'});
