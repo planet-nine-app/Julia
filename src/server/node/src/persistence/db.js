@@ -179,7 +179,17 @@ console.log('THE PROBLEM IS THAT newPubKey DOESN\'T EXIST');
   getMessages: async (user) => {
     const messages = (await client.get(`${user.uuid}:messages`)) || '[]';
     return JSON.parse(messages);
+  },
+
+  saveKeys: async (keys) => {
+    await client.set(`keys`, JSON.stringify(keys));
+  },
+
+  getKeys: async () => {
+    const keyString = await client.get('keys');
+    return JSON.parse(keyString);
   }
+
 };
 
 export default db;

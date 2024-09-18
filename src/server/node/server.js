@@ -5,6 +5,7 @@ import user from './src/user/user.js';
 import associate from './src/associate/associate.js';
 import messaging from './src/messaging/messaging.js';
 import MAGIC from './src/magic/magic.js';
+import fount from 'fount-js';
 import sessionless from 'sessionless-node';
 
 const sk = (keys) => {
@@ -20,6 +21,30 @@ sessionless.generateKeys(sk, gk);
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const SUBDOMAIN = process.env.SUBDOMAIN || 'dev';
+fount.baseURL = `${SUBDOMAIN}.fount.allyabase.com`;
+
+const repeat = (func) => {
+  setTimeout(func, 2000);
+};
+
+const bootstrap = async () => {
+  try {
+    await user.getUserByUUID('julia');
+    sessionless.getKeys = db.getKeys;
+  } catch(err) {
+    const fountUUID = await fount.createUser(db.saveKeys, db.getKeys);
+    const julia = {
+      uuid: 'julia',
+      fountUUID
+    };
+    await db.saveUser(julia);
+    repeat(bootstrap);
+  }
+};
+
+repeat(bootstrap);
 
 app.use((req, res, next) => {
   const requestTime = +req.query.timestamp || +req.body.timestamp;
