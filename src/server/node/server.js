@@ -1,11 +1,13 @@
 import config from './config/local.js';
 import express from 'express';
 import cors from 'cors';
+import { createHash } from 'node:crypto';
 import user from './src/user/user.js';
 import associate from './src/associate/associate.js';
 import messaging from './src/messaging/messaging.js';
 import MAGIC from './src/magic/magic.js';
 import fount from 'fount-js';
+import bdo from 'bdo-js';
 import sessionless from 'sessionless-node';
 import db from './src/persistence/db.js';
 
@@ -25,6 +27,11 @@ app.use(express.json());
 
 const SUBDOMAIN = process.env.SUBDOMAIN || 'dev';
 fount.baseURL = process.env.LOCALHOST ? 'http://localhost:3006/' : `${SUBDOMAIN}.fount.allyabase.com/`;
+bdo.baseURL = process.env.LOCALHOST ? 'http://localhost:3003/' : `${SUBDOMAIN}.bdo.allyabase.com/`;
+
+const bdoHashInput = `${SUBDOMAIN}continuebee`;
+
+const bdoHash = createHash('sha256').update(bdoHashInput).digest('hex');
 
 const repeat = (func) => {
   setTimeout(func, 2000);
@@ -33,21 +40,22 @@ const repeat = (func) => {
 const bootstrap = async () => {
   try {
     const fountUser = await fount.createUser(db.saveKeys, db.getKeys);
-    const bdoUUID = await bdo.createUser(bdoHash, () => {}, db.getKeys);
-    const spellbook = await bdo.getBDO(bdoUUID, bdoHash, fountPubKey);
-    const addie = {
-      uuid: 'addie',
+    const bdoUUID = await bdo.createUser(bdoHash, {}, () => {}, db.getKeys);
+    const spellbooks = await bdo.getSpellbooks(bdoUUID, bdoHash);
+    const julia = {
+      uuid: 'julia',
       fountUUID: fountUser.uuid,
       fountPubKey: fountUser.pubKey,
       bdoUUID,
-      spellbook
+      keys: {interactingKeys: {}, coordinatingKeys: {}},
+      spellbooks
     };
 
-    if(!addie.fountUUID || !addie.bdoUUID || !spellbook) {
+    if(!julia.fountUUID || !julia.bdoUUID || !spellbooks) {
       throw new Error('bootstrap failed');
     }
 
-    await db.saveUser(addie);
+    await db.saveUser(julia);
   } catch(err) {
     repeat(bootstrap);
   }
@@ -225,9 +233,10 @@ app.post('/user/:uuid/associate', async (req, res) => {
 });
 
 app.post('/magic/spell/:spellName', async (req, res) => {
+console.log('got spell req');
   try {
-    const spellName = req.params.spell;
-    const spell = req.body.spell;
+    const spellName = req.params.spellName;
+    const spell = req.body;
     
     switch(spellName) {
       case 'joinup': const joinupResp = await MAGIC.joinup(spell);
@@ -241,6 +250,7 @@ app.post('/magic/spell/:spellName', async (req, res) => {
     res.status(404);
     res.send({error: 'spell not found'});
   } catch(err) {
+console.warn(err);
     res.status(404);
     res.send({error: 'not found'});
   }

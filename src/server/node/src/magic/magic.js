@@ -10,12 +10,20 @@ const fountURL = 'http://localhost:3006/';
 
 const MAGIC = {
   joinup: async (spell) => {
-    const gateway = await gatewayForSpell(spell.spellName);
-    spell.gateways.push(spell);
+    const gateway = await MAGIC.gatewayForSpell(spell.spellName);
+    spell.gateways.push(gateway);
+    const spellName = spell.spell;
 
-    const spellbook = await db.get('spellbook');
-    const nextIndex = spellbook.destinations.indexOf(spellbook.destinations.find(($) => $.stopName === 'julia'));
-    const nextDestination = spellbook.destinations[nextIndex].stopURL + '/' + spell.spellName;
+    const julia = await db.getUser('julia');
+    const spellbooks = julia.spellbooks;
+    const spellbook = spellbooks.filter(spellbook => spellbook[spellName]).pop();
+    if(!spellbook) {
+      throw new Error('spellbook not found');
+    }
+
+    const spellEntry = spellbook[spellName];
+    const currentIndex = spellEntry.destinations.indexOf(spellEntry.destinations.find(($) => $.stopName === 'julia'));
+    const nextDestination = spellEntry.destinations[currentIndex + 1].stopURL + spellName;
 
     const res = await MAGIC.forwardSpell(spell, nextDestination);
     const body = await res.json();
@@ -46,7 +54,7 @@ const MAGIC = {
       throw new Error('missing coordinating key');
     }
 
-    const gateway = await gatewayForSpell(spell.spellName);
+    const gateway = await MAGIC.gatewayForSpell(spell.spellName);
     spell.gateways.push(gateway);
 
     const res = await MAGIC.forwardSpell(spell, fountURL);
@@ -63,7 +71,7 @@ const MAGIC = {
     const julia = await db.getUser('julia');
     const gateway = {
       timestamp: new Date().getTime() + '',
-      uuid: julia.uuid, 
+      uuid: julia.fountUUID, 
       minimumCost: 20,
       ordinal: julia.ordinal
     };      
