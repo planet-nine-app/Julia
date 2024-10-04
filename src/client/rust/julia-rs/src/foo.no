@@ -1,0 +1,34 @@
+use sessionless::hex::IntoHex;
+use sessionless::{Sessionless, Signature};
+use serde::{Deserialize, Serialize};
+use crate::requests::{Payload, Request, Response};
+
+mod commands;
+mod models;
+
+pub type JuliaUser = models::JuliaUser;
+
+pub struct Julia {
+  baseURL: String
+}
+
+pub struct KeyManager {
+  saveKeys: SK,
+  getKeys: GK
+}
+
+impl<SK, GK> Julia<SK, GK> {
+  
+  pub fn new(baseURL?: String) -> Self {
+    let baseURL = baseURL || "https://dev.julia.allyabase.com/";
+    self {
+      baseURL
+    }
+  }
+
+  pub fn createUser(saveKeys: SK, getKeys: GK, user: JuliaUser) -> JuliaUser {
+    
+  }
+
+  
+}
