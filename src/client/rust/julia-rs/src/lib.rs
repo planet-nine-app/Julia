@@ -1,13 +1,21 @@
+mod structs;
+
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use sessionless::hex::IntoHex;
 use sessionless::{Sessionless, Signature};
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use crate::structs::{Prompt, SuccessResult, Message, Messages};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JuliaUser {
     pub_key: String,
-    // Add other fields as needed
+    pub keys: HashMap<String, HashMap<String, String>>,
+    pub messages: Box<[Message]>,
+    pub handle: String,
+    pub pendingPrompts: HashMap<String, HashMap<String, String>>
 }
 
 pub struct Julia {
@@ -61,19 +69,17 @@ impl Julia {
             .to_string()
     }
 
-    pub async fn create_user(&self, optional_user: Option<JuliaUser>) -> Result<JuliaUser, Box<dyn std::error::Error>> {
-        let keys = self.sessionless.generate_keys().await?;
+    pub async fn create_user(&self, user: JuliaUser) -> Result<JuliaUser, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
+        let pub_key = self.sessionless.public_key().to_hex();
+        let signature = self.sessionless.sign(&format!("{}{}", timestamp, pub_key)).to_hex();
         
         let payload = json!({
             "timestamp": timestamp,
-            "pubKey": keys.pub_key,
-            "user": optional_user.unwrap_or(JuliaUser { pub_key: keys.pub_key.clone() })
-        });
-
-        let signature = self.sessionless.sign(&format!("{}{}", timestamp, keys.pub_key)).await?;
-        let mut payload = payload.as_object().unwrap().clone();
-        payload.insert("signature".to_string(), json!(signature));
+            "pubKey": pub_key,
+            "user": user,
+            "signature": signature
+        }).as_object().unwrap().clone();
 
         let url = format!("{}user/create", self.base_url);
         let res = self.put(&url, serde_json::Value::Object(payload)).await?;
@@ -85,7 +91,7 @@ impl Julia {
     pub async fn get_user(&self, uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}", timestamp, uuid);
-        let signature = self.sessionless.sign(&message).await?;
+        let signature = self.sessionless.sign(&message).to_hex();
 
         let url = format!("{}user/{}?timestamp={}&signature={}", self.base_url, uuid, timestamp, signature);
         let res = self.get(&url).await?;
@@ -97,7 +103,7 @@ impl Julia {
     pub async fn get_prompt(&self, uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}", timestamp, uuid);
-        let signature = self.sessionless.sign(&message).await?;
+        let signature = self.sessionless.sign(&message).to_hex();
 
         let url = format!("{}user/{}/associate/prompt?timestamp={}&signature={}", self.base_url, uuid, timestamp, signature);
         let res = self.get(&url).await?;
@@ -107,11 +113,11 @@ impl Julia {
     }
 
     pub async fn sign_prompt(&self, uuid: &str, prompt: &Prompt) -> Result<JuliaUser, Box<dyn std::error::Error>> {
-        let pub_key = self.sessionless.public_key;
+        let pub_key = self.sessionless.public_key().to_hex();
         let timestamp = Self::get_timestamp();
 
-        let message = format!("{}{}{}{}", timestamp, uuid, pub_key, prompt);
-        let signature = self.sessionless.sign(&message).await?;
+        let message = format!("{}{}{}{}", timestamp, uuid, pub_key, prompt.prompt.as_deref().unwrap_or(""));
+        let signature = self.sessionless.sign(&message).to_hex();
 
         let payload = json!({
             "timestamp": timestamp,
@@ -119,101 +125,103 @@ impl Julia {
             "pubKey": pub_key,
             "prompt": prompt,
             "signature": signature
-        });
+        }).as_object().unwrap().clone();
 
         let url = format!("{}user/{}/associate/signedPrompt", self.base_url, uuid);
-        let res = self.post(url, serde_json::Value::Object(payload)).await?;
+        let res = self.post(&url, serde_json::Value::Object(payload)).await?;
         let user: JuliaUser = res.json().await?;
 
-        Ok(user);
+        Ok(user)
     }
 
-    pub async fn associate(&self, uuid: &str, signedPrompt: &Prompt) -> Result<JuliaUser, Box<dyn std::error::Error>> {
+    pub async fn associate(&self, uuid: &str, signed_prompt: &Prompt) -> Result<JuliaUser, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
-        let message = format!("{}{}{}{}", signedPrompt.new_timestamp, signedPrompt.new_uuid, signedPrompt.new_pub_key, signedPrompt.prompt);
-        let signature = self.sessionless.sign(&message).await?;
+        let message = format!("{}{}{}{}", signed_prompt.new_timestamp.as_deref().unwrap_or(""), signed_prompt.new_uuid.as_deref().unwrap_or(""), signed_prompt.new_pub_key.as_deref().unwrap_or(""), signed_prompt.prompt.as_deref().unwrap_or(""));
+        let signature = self.sessionless.sign(&message).to_hex();
 
         let payload = json!({
             "timestamp": timestamp,
-            "newTimestamp": signedPrompt.new_timestamp,
-            "newUUID": signedPrompt.new_uuid,
-            "newPubKey": signedPrompt.new_pub_key,
-            "newSignature": signedPrompt.new_signature,
-            "prompt": signedPrompt.prompt,
+            "newTimestamp": signed_prompt.new_timestamp,
+            "newUUID": signed_prompt.new_uuid,
+            "newPubKey": signed_prompt.new_pub_key,
+            "newSignature": signed_prompt.new_signature,
+            "prompt": signed_prompt.prompt,
             "signature": signature
-        });
+        }).as_object().unwrap().clone();
 
         let url = format!("{}user/{}/associate", self.base_url, uuid);
-        let res = self.post(url, serde_json::Value::Object(payload)).await?;
+        let res = self.post(&url, serde_json::Value::Object(payload)).await?;
         let user: JuliaUser = res.json().await?;
 
-        Ok(user);
+        Ok(user)
     }
 
     pub async fn delete_key(&self, uuid: &str, associated_uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}{}", timestamp, associated_uuid, uuid);
-        let signature = self.sessionless.sign(&message).await?;
+        let signature = self.sessionless.sign(&message).to_hex();
 
         let payload = json!({
             "timestamp": timestamp,
             "signature": signature
-        });
+        }).as_object().unwrap().clone();
 
         let url = format!("{}associated/{}/user/{}", self.base_url, associated_uuid, uuid);
-        let res = self.delete(url, payload);
+        let res = self.delete(&url, serde_json::Value::Object(payload)).await?;
         let user: JuliaUser = res.json().await?;
             
-        Ok(user);
+        Ok(user)
     }
 
     pub async fn post_message(&self, uuid: &str, receiver_uuid: &str, contents: String) -> Result<SuccessResult, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}{}{}", timestamp, uuid, receiver_uuid, contents);
-        let signature = self.sessionless.sign(&message).await?;
+        let signature = self.sessionless.sign(&message).to_hex();
 
         let payload = json!({
             "timestamp": timestamp,
             "senderUUID": uuid,
             "receiverUUID": receiver_uuid,
             "message": contents
-        });
+        }).as_object().unwrap().clone();
 
         let url = format!("{}message", self.base_url);
-        let res = self.post(url, serde_json::Value::Object(payload)).await?;
+        let res = self.post(&url, serde_json::Value::Object(payload)).await?;
         let success: SuccessResult = res.json().await?;
 
-        Ok(success);
+        Ok(success)
     }
 
-    pub async fn get_messages(&self, uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
+// Unimplemented
+/*    pub async fn get_messages(&self, uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}", timestamp, uuid);
-        let signature = self.sessionless.sign(&message).await?;
+        let signature = self.sessionless.sign(&message).to_hex();
  
         let url = format!("{}messages/user/{}?timestamp={}&signature={}", self.base_url, uuid, timestamp, signature);
-        let res = self.get(url);
+        let res = self.get(&url).await?;
         let messages: Messages = res.json().await?;
 
-        Ok(messages);
+        Ok(messages)
     }
+*/
 
     pub async fn delete_user(&self, uuid: &str) -> Result<SuccessResult, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}", timestamp, uuid);
-        let signature = self.sessionless.sign(&message).await?;
+        let signature = self.sessionless.sign(&message).to_hex();
 
         let payload = json!({
           "timestamp": timestamp,
           "uuid": uuid,
           "signature": signature
-        });
+        }).as_object().unwrap().clone();
 
         let url = format!("{}user/{}", self.base_url, uuid);
-        let res = self.delete(url, serde_json::Value::Object(payload)).await?;
-        let success = SuccessResult::success();
+        let res = self.delete(&url, serde_json::Value::Object(payload)).await?;
+        let success: SuccessResult = res.json().await?;
 
-        OK(success);
+        Ok(success)
     }
 
 }
