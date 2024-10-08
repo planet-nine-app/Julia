@@ -1,5 +1,8 @@
 mod structs;
 
+#[cfg(test)]
+mod tests;
+
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -11,11 +14,29 @@ use crate::structs::{Prompt, SuccessResult, Message, Messages};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JuliaUser {
-    pub_key: String,
+    pub pub_key: String,
     pub keys: HashMap<String, HashMap<String, String>>,
-    pub messages: Box<[Message]>,
+    pub uuid: String,
+    pub messages: Vec<Message>,  
     pub handle: String,
-    pub pendingPrompts: HashMap<String, HashMap<String, String>>
+    pub pending_prompts: HashMap<String, HashMap<String, String>>  
+}
+
+impl JuliaUser {
+    pub fn new(pub_key: String, handle: String) -> Self {
+        let mut keys = HashMap::new();
+        keys.insert("interactingKeys".to_string(), HashMap::new());
+        keys.insert("coordinatingKeys".to_string(), HashMap::new());
+
+        JuliaUser {
+            pub_key,
+            keys,
+            uuid: "".to_string(),
+            messages: Vec::new(),  // Initialize as an empty Vec
+            handle,
+            pending_prompts: HashMap::new()
+        }
+    }
 }
 
 pub struct Julia {
