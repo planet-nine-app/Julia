@@ -13,13 +13,14 @@ use std::collections::HashMap;
 use crate::structs::{Prompt, SuccessResult, Message, Messages};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all="camelCase")]
 pub struct JuliaUser {
     pub pub_key: String,
     pub keys: HashMap<String, HashMap<String, String>>,
     pub uuid: String,
     pub messages: Vec<Message>,  
     pub handle: String,
-    pub pending_prompts: HashMap<String, HashMap<String, String>>  
+    pub pending_prompts: HashMap<String, Prompt>  
 }
 
 impl JuliaUser {
@@ -133,9 +134,11 @@ impl Julia {
         Ok(user)
     }
 
-    pub async fn sign_prompt(&self, uuid: &str, prompt: &Prompt) -> Result<JuliaUser, Box<dyn std::error::Error>> {
+    pub async fn sign_prompt(&self, uuid: &str, prompt: &Prompt) -> Result<SuccessResult, Box<dyn std::error::Error>> {
         let pub_key = self.sessionless.public_key().to_hex();
         let timestamp = Self::get_timestamp();
+        let pr = prompt.prompt.as_deref().unwrap_or("");
+println!("{}", format!("prompt is {}", pr));
 
         let message = format!("{}{}{}{}", timestamp, uuid, pub_key, prompt.prompt.as_deref().unwrap_or(""));
         let signature = self.sessionless.sign(&message).to_hex();
@@ -144,15 +147,15 @@ impl Julia {
             "timestamp": timestamp,
             "uuid": uuid,
             "pubKey": pub_key,
-            "prompt": prompt,
+            "prompt": pr,
             "signature": signature
         }).as_object().unwrap().clone();
 
         let url = format!("{}user/{}/associate/signedPrompt", self.base_url, uuid);
         let res = self.post(&url, serde_json::Value::Object(payload)).await?;
-        let user: JuliaUser = res.json().await?;
+        let success: SuccessResult = res.json().await?;
 
-        Ok(user)
+        Ok(success)
     }
 
     pub async fn associate(&self, uuid: &str, signed_prompt: &Prompt) -> Result<JuliaUser, Box<dyn std::error::Error>> {
@@ -197,13 +200,15 @@ impl Julia {
     pub async fn post_message(&self, uuid: &str, receiver_uuid: &str, contents: String) -> Result<SuccessResult, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}{}{}", timestamp, uuid, receiver_uuid, contents);
+println!("{}", message);
         let signature = self.sessionless.sign(&message).to_hex();
 
         let payload = json!({
             "timestamp": timestamp,
             "senderUUID": uuid,
             "receiverUUID": receiver_uuid,
-            "message": contents
+            "message": contents,
+            "signature": signature
         }).as_object().unwrap().clone();
 
         let url = format!("{}message", self.base_url);

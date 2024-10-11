@@ -497,6 +497,7 @@ name = "julia-rs"
 version = "0.1.0"
 dependencies = [
  "actix-rt",
+ "once_cell",
  "reqwest",
  "serde",
  "serde_json",

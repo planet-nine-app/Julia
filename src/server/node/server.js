@@ -97,6 +97,7 @@ app.get('/user/:uuid', async (req, res) => {
     const timestamp = req.query.timestamp;
     const signature = req.query.signature;
     const message = timestamp + uuid;
+console.log('getting user: ', uuid);
    
     const foundUser = await user.getUser(req.params.uuid);
 
@@ -187,6 +188,7 @@ app.post('/user/:uuid/associate', async (req, res) => {
   console.log("\n\n\n\n\n\n");
   console.log('associated prompt', req.body.prompt);
   console.log("\n\n\n\n\n\n");
+  console.log('body', req.body);
     const uuid = req.params.uuid;
     const newTimestamp = req.body.newTimestamp;
     const newUUID = req.body.newUUID;
@@ -197,10 +199,17 @@ app.post('/user/:uuid/associate', async (req, res) => {
     const message = newTimestamp + newUUID + newPubKey + prompt;
 
     const foundUser = await user.getUser(req.params.uuid);
+console.log(foundUser);
+console.log('prompt', prompt);
+console.log('newUUID', newUUID);
 
     if(!foundUser.pendingPrompts[prompt] || 
        !(foundUser.pendingPrompts[prompt].prompter === foundUser.uuid && 
        foundUser.pendingPrompts[prompt].newUUID === newUUID)) {
+console.log(!foundUser.pendingPrompts[prompt]);
+console.log(!(foundUser.pendingPrompts[prompt].prompter === foundUser.uuid &&
+             foundUser.pendingPrompts[prompt].newUUID === newUUID));
+console.log(foundUser.pendingPrompts[prompt].newUUID === newUUID);
   console.log("first check failed");
       res.status(404);
       return res.send({error: 'prompt not found'});
@@ -313,19 +322,21 @@ app.delete('/user/:uuid', async (req, res) => {
 
 app.post('/message', async (req, res) => {
   try {
+console.log('message body', req.body);
     const timestamp = req.body.timestamp;
     const senderUUID = req.body.senderUUID;
     const receiverUUID = req.body.receiverUUID;
     const message = req.body.message;
     const signature = req.body.signature;
     const msg = timestamp + senderUUID + receiverUUID + message;
+console.log('message for post message is:', msg);
 
     const sender = await user.getUser(senderUUID);
 
   console.log('got stuff');
 
     if(!signature || !sessionless.verifySignature(signature, msg, sender.pubKey)) {
-  console.log('auth error');
+  console.log('auth error in post message');
       res.status(403);
       return res.send({error: 'auth error'});
     }
@@ -341,6 +352,7 @@ app.post('/message', async (req, res) => {
 
     res.send({success: result});
   } catch(err) {
+console.log('YOu\'re erroring on the post message', err);
     res.status(404);
     res.send({error: 'not found'});
   }
