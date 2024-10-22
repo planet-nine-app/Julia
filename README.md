@@ -351,6 +351,6 @@ This is a bit dependent on what the server implementations are, so we'll fill th
 To add to this repo, feel free to make a [pull request][pr].
 
 [julia]: https://en.wikipedia.org/wiki/Julia_O'Connor
-[julia messenger]: https://app.juliaswitch.com
+[julia messenger]: https://dev.savage.allyabase.com
 [sessionless]: https://www.github.com/planet-nine-app/sessionless
 

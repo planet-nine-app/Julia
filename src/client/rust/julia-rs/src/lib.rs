@@ -43,7 +43,7 @@ impl JuliaUser {
 pub struct Julia {
     base_url: String,
     client: Client,
-    sessionless: Sessionless,
+    pub sessionless: Sessionless,
 }
 
 impl Julia {
