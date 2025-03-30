@@ -51,7 +51,7 @@ const bootstrap = async () => {
       spellbooks
     };
 
-    if(!julia.fountUUID || !julia.bdoUUID || !spellbooks || spellbooks.length === 0) {
+    if(!julia.fountUUID || !julia.bdoUUID || !spellbooks) {
       throw new Error('bootstrap failed');
     }
 
