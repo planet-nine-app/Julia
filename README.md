@@ -146,6 +146,57 @@ It doesn't get much CRUDier than this API:
 </details>
 
 <details>
+  <summary><code>GET</code> <code><b>/authteam</b></code> <code>Gets a bundle of instructions for display in a div for the authteam process</code></summary>
+
+##### Parameters
+
+> | name         |  required     | data type               | description                                                           |
+> |--------------|-----------|-------------------------|-----------------------------------------------------------------------|
+> | timestamp    |  true     | string                  | in a production system timestamps prevent replay attacks  |
+> | signature    |  true     | string                  | the signature
+  
+##### Responses
+
+> | http code     | content-type                      | response                                                            |
+> |---------------|-----------------------------------|---------------------------------------------------------------------|
+> | `200`         | `text/html`                | `authteam.html`   |
+> | `400`         | `application/json`                | `{"code":"400","message":"Bad Request"}`                            |
+
+##### Example cURL
+
+> ```javascript
+>  curl https://www.juliaswitch.com/authteam<uuid>
+> ```
+
+</details>
+
+<details>
+  <summary><code>POST</code> <code><b>/user/:uuid/authteam/authorize</b></code> <code>This will post the results of the client side auth team inputs</code></summary>
+
+##### Parameters
+
+> | name         |  required     | data type               | description                                                           |
+> |--------------|-----------|-------------------------|-----------------------------------------------------------------------|
+> | timestamp    |  true     | string                  | in a production system timestamps prevent replay attacks  |
+> | signature    |  true     | string                  | the signature
+> | inputs       |  true     | string                  | the inputs bundle
+  
+##### Responses
+
+> | http code     | content-type                      | response                                                            |
+> |---------------|-----------------------------------|---------------------------------------------------------------------|
+> | `200`         | `application/json`                | `{"success": true}`   |
+> | `400`         | `application/json`                | `{"code":"400","message":"Bad Request"}`                            |
+
+##### Example cURL
+
+> ```javascript
+>  curl https://www.juliaswitch.com/user/:uuid/authteam/authorize<uuid>
+> ```
+
+</details>
+
+<details>
   <summary><code>DELETE</code> <code><b>/associated/:associatedUUID/user/:uuid</b></code> <code>Deletes a pubKey from the user</code></summary>
 
 ##### Parameters
