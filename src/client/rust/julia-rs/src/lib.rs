@@ -1,4 +1,4 @@
-mod structs;
+pub mod structs;
 
 #[cfg(test)]
 mod tests;
@@ -10,7 +10,7 @@ use sessionless::hex::IntoHex;
 use sessionless::{Sessionless, Signature};
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
-use crate::structs::{Prompt, SuccessResult, Message, Messages};
+pub use crate::structs::{Prompt, SuccessResult, Message};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all="camelCase")]
@@ -104,10 +104,26 @@ impl Julia {
         }).as_object().unwrap().clone();
 
         let url = format!("{}user/create", self.base_url);
+        println!("🔧 Creating julia user at: {}", url);
         let res = self.put(&url, serde_json::Value::Object(payload)).await?;
-        let user: JuliaUser = res.json().await?;
-
-        Ok(user)
+        
+        // Debug: Check response status and text before parsing
+        let status = res.status();
+        let response_text = res.text().await?;
+        println!("📊 Julia create_user response ({}): {}", status, response_text);
+        
+        // Try to parse the response
+        match serde_json::from_str::<JuliaUser>(&response_text) {
+            Ok(user) => {
+                println!("✅ Successfully parsed julia user: {}", user.uuid);
+                Ok(user)
+            }
+            Err(e) => {
+                println!("❌ Failed to parse julia user response: {}", e);
+                println!("   Raw response: {}", response_text);
+                Err(Box::new(e))
+            }
+        }
     }
 
     pub async fn get_user(&self, uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
@@ -116,10 +132,26 @@ impl Julia {
         let signature = self.sessionless.sign(&message).to_hex();
 
         let url = format!("{}user/{}?timestamp={}&signature={}", self.base_url, uuid, timestamp, signature);
+        println!("🔍 Getting julia user from: {}", url);
         let res = self.get(&url).await?;
-        let user: JuliaUser = res.json().await?;
-
-        Ok(user)
+        
+        // Debug: Check response status and text before parsing
+        let status = res.status();
+        let response_text = res.text().await?;
+        println!("📊 Julia get_user response ({}): {}", status, response_text);
+        
+        // Try to parse the response
+        match serde_json::from_str::<JuliaUser>(&response_text) {
+            Ok(user) => {
+                println!("✅ Successfully parsed julia user: {}", user.uuid);
+                Ok(user)
+            }
+            Err(e) => {
+                println!("❌ Failed to parse julia user response: {}", e);
+                println!("   Raw response: {}", response_text);
+                Err(Box::new(e))
+            }
+        }
     }
 
     pub async fn get_prompt(&self, uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
@@ -152,10 +184,36 @@ println!("{}", format!("prompt is {}", pr));
         }).as_object().unwrap().clone();
 
         let url = format!("{}user/{}/associate/signedPrompt", self.base_url, uuid);
+        println!("📝 Julia sign_prompt URL: {}", url);
+        println!("📝 Julia sign_prompt payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        
         let res = self.post(&url, serde_json::Value::Object(payload)).await?;
-        let success: SuccessResult = res.json().await?;
-
-        Ok(success)
+        
+        // Debug: Check response status and text before parsing
+        let status = res.status();
+        let response_text = res.text().await?;
+        println!("📊 Julia sign_prompt response ({}): {}", status, response_text);
+        
+        // Handle different response formats
+        if status.is_success() {
+            // Try to parse as SuccessResult
+            match serde_json::from_str::<SuccessResult>(&response_text) {
+                Ok(success) => {
+                    println!("✅ Successfully parsed julia sign_prompt response: {:?}", success);
+                    Ok(success)
+                }
+                Err(e) => {
+                    // Maybe the response format is different - let's see what we got
+                    println!("⚠️ Unexpected sign_prompt response format: {}", response_text);
+                    println!("   Parse error: {}", e);
+                    // Return a success result if we got a 200 status
+                    Ok(SuccessResult { success: true })
+                }
+            }
+        } else {
+            println!("❌ Julia sign_prompt failed with status {}: {}", status, response_text);
+            Err(format!("Julia sign_prompt failed ({}): {}", status, response_text).into())
+        }
     }
 
     pub async fn associate(&self, uuid: &str, signed_prompt: &Prompt) -> Result<JuliaUser, Box<dyn std::error::Error>> {
@@ -174,10 +232,41 @@ println!("{}", format!("prompt is {}", pr));
         }).as_object().unwrap().clone();
 
         let url = format!("{}user/{}/associate", self.base_url, uuid);
+        println!("🔗 Julia associate URL: {}", url);
+        println!("🔗 Julia associate payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        
         let res = self.post(&url, serde_json::Value::Object(payload)).await?;
-        let user: JuliaUser = res.json().await?;
-
-        Ok(user)
+        
+        // Debug: Check response status and text before parsing
+        let status = res.status();
+        let response_text = res.text().await?;
+        println!("📊 Julia associate response ({}): {}", status, response_text);
+        
+        // Handle different response formats
+        if status.is_success() {
+            // Success response - try to parse as JuliaUser
+            match serde_json::from_str::<JuliaUser>(&response_text) {
+                Ok(user) => {
+                    println!("✅ Successfully parsed julia associate response");
+                    Ok(user)
+                }
+                Err(e) => {
+                    println!("❌ Failed to parse associate success response: {}", e);
+                    println!("   Raw response: {}", response_text);
+                    Err(Box::new(e))
+                }
+            }
+        } else {
+            // Error response - return descriptive error
+            println!("❌ Julia associate failed with status {}: {}", status, response_text);
+            if response_text.contains("not found") {
+                Err("Association failed - user or prompt not found".into())
+            } else if response_text.contains("auth error") || response_text.contains("signature") {
+                Err("Association failed - authentication error, check signatures".into())
+            } else {
+                Err(format!("Julia association service error ({}): {}", status, response_text).into())
+            }
+        }
     }
 
     pub async fn delete_key(&self, uuid: &str, associated_uuid: &str) -> Result<JuliaUser, Box<dyn std::error::Error>> {
@@ -200,7 +289,7 @@ println!("{}", format!("prompt is {}", pr));
     pub async fn post_message(&self, uuid: &str, receiver_uuid: &str, contents: String) -> Result<SuccessResult, Box<dyn std::error::Error>> {
         let timestamp = Self::get_timestamp();
         let message = format!("{}{}{}{}", timestamp, uuid, receiver_uuid, contents);
-println!("{}", message);
+        println!("📤 Julia post_message - signing message: {}", message);
         let signature = self.sessionless.sign(&message).to_hex();
 
         let payload = json!({
@@ -212,10 +301,41 @@ println!("{}", message);
         }).as_object().unwrap().clone();
 
         let url = format!("{}message", self.base_url);
+        println!("📤 Julia post_message URL: {}", url);
+        println!("📤 Julia post_message payload: {}", serde_json::to_string_pretty(&payload).unwrap_or_default());
+        
         let res = self.post(&url, serde_json::Value::Object(payload)).await?;
-        let success: SuccessResult = res.json().await?;
-
-        Ok(success)
+        
+        // Debug: Check response status and text before parsing
+        let status = res.status();
+        let response_text = res.text().await?;
+        println!("📊 Julia post_message response ({}): {}", status, response_text);
+        
+        // Handle different response formats
+        if status.is_success() {
+            // Success response - try to parse as SuccessResult
+            match serde_json::from_str::<SuccessResult>(&response_text) {
+                Ok(success) => {
+                    println!("✅ Successfully parsed julia post_message response: {:?}", success);
+                    Ok(success)
+                }
+                Err(e) => {
+                    println!("❌ Failed to parse success response: {}", e);
+                    println!("   Raw response: {}", response_text);
+                    Err(Box::new(e))
+                }
+            }
+        } else {
+            // Error response - return descriptive error
+            println!("❌ Julia post_message failed with status {}: {}", status, response_text);
+            if response_text.contains("not found") {
+                Err("Receiver not found - check if both users are properly associated".into())
+            } else if response_text.contains("auth error") {
+                Err("Authentication failed - check signatures and keys".into())
+            } else {
+                Err(format!("Julia service error ({}): {}", status, response_text).into())
+            }
+        }
     }
 
 // Unimplemented
