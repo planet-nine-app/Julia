@@ -380,6 +380,396 @@ app.get('/messages/user/:uuid', async (req, res) => {
   }
 });
 
+app.get('/authteam', async (req, res) => {
+  try {
+    // Generate random colored button sequence for authteam game
+    const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+    const sequenceLength = 5; // 4 buttons + 1 final coordination button
+    const sequence = [];
+
+    for (let i = 0; i < sequenceLength; i++) {
+      sequence.push(colors[Math.floor(Math.random() * colors.length)]);
+    }
+
+    // Return authteam magistack HTML
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Julia AuthTeam - Coordinating Keys</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      margin: 0;
+      padding: 20px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      max-width: 600px;
+      text-align: center;
+    }
+    h1 {
+      font-size: 48px;
+      margin-bottom: 10px;
+    }
+    .subtitle {
+      font-size: 18px;
+      opacity: 0.9;
+      margin-bottom: 40px;
+    }
+    .instruction {
+      background: rgba(255,255,255,0.2);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 30px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    .color-button {
+      width: 100%;
+      aspect-ratio: 1;
+      border: none;
+      border-radius: 50%;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      color: white;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+    .color-button:hover {
+      transform: scale(1.1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .color-button:active {
+      transform: scale(0.95);
+    }
+    .color-button.red { background: #e74c3c; }
+    .color-button.blue { background: #3498db; }
+    .color-button.green { background: #2ecc71; }
+    .color-button.yellow { background: #f1c40f; color: #333; }
+    .color-button.purple { background: #9b59b6; }
+    .color-button.orange { background: #e67e22; }
+    .sequence-display {
+      background: rgba(0,0,0,0.3);
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 20px;
+      font-family: monospace;
+      font-size: 18px;
+    }
+    .status {
+      font-size: 24px;
+      font-weight: bold;
+      min-height: 40px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎮 AuthTeam</h1>
+    <div class="subtitle">Coordinating Keys Challenge</div>
+
+    <div class="instruction">
+      Press the colored buttons in the correct sequence to add a coordinating key!
+    </div>
+
+    <div class="sequence-display">
+      Target: <span id="targetSequence">${sequence.join(' → ')}</span>
+    </div>
+
+    <div class="sequence-display">
+      Your Input: <span id="playerSequence">-</span>
+    </div>
+
+    <div class="button-grid">
+      ${colors.map(color => `
+        <button class="color-button ${color}" onclick="pressButton('${color}')">
+          ${color.toUpperCase()}
+        </button>
+      `).join('')}
+    </div>
+
+    <div class="status" id="status">Ready to begin!</div>
+  </div>
+
+  <script>
+    const targetSequence = ${JSON.stringify(sequence)};
+    let playerInput = [];
+
+    function pressButton(color) {
+      playerInput.push(color);
+      document.getElementById('playerSequence').textContent = playerInput.join(' → ');
+
+      // Check if input matches so far
+      for (let i = 0; i < playerInput.length; i++) {
+        if (playerInput[i] !== targetSequence[i]) {
+          document.getElementById('status').textContent = '❌ Wrong sequence! Try again.';
+          document.getElementById('status').style.color = '#e74c3c';
+          setTimeout(() => {
+            playerInput = [];
+            document.getElementById('playerSequence').textContent = '-';
+            document.getElementById('status').textContent = 'Ready to begin!';
+            document.getElementById('status').style.color = 'white';
+          }, 1500);
+          return;
+        }
+      }
+
+      // Check if complete
+      if (playerInput.length === targetSequence.length) {
+        document.getElementById('status').textContent = '✅ Success! Coordinating key added!';
+        document.getElementById('status').style.color = '#2ecc71';
+
+        // This is where we would call the Julia endpoint to add coordinating keys
+        // For now, just show success
+        setTimeout(() => {
+          playerInput = [];
+          document.getElementById('playerSequence').textContent = '-';
+          document.getElementById('status').textContent = 'Ready for next key!';
+          document.getElementById('status').style.color = 'white';
+        }, 2000);
+      }
+    }
+  </script>
+</body>
+</html>
+    `;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch(err) {
+    console.warn(err);
+    res.status(500);
+    res.send({error: 'authteam generation failed'});
+  }
+});
+
+app.post('/user/:uuid/coordinate', async (req, res) => {
+  try {
+    const primaryUUID = req.params.uuid;
+    const coordinatingPubKey = req.body.pubKey;
+    const coordinatingUuid = req.body.uuid;
+    const timestamp = req.body.timestamp;
+    const signature = req.body.signature;
+
+    // Verify the signature from the coordinating user
+    const message = timestamp + primaryUUID + coordinatingPubKey + coordinatingUuid;
+    const primaryUser = await user.getUser(primaryUUID);
+
+    console.log('Coordinate request:');
+    console.log('  message:', message);
+    console.log('  signature:', signature);
+    console.log('  coordinatingPubKey:', coordinatingPubKey);
+
+    let verifyResult = false;
+    try {
+      verifyResult = sessionless.verifySignature(signature, message, coordinatingPubKey);
+    } catch (verifyErr) {
+      // Invalid signature format
+      console.log('  verifySignature error:', verifyErr.message);
+    }
+    console.log('  verifyResult:', verifyResult);
+
+    if (!signature || !verifyResult) {
+      res.status(403);
+      return res.send({ error: 'auth error' });
+    }
+
+    // Add coordinating key to primary user
+    const updatedUser = await db.coordinateKeys(primaryUser, coordinatingPubKey, coordinatingUuid);
+
+    res.send({
+      success: true,
+      coordinatingKeys: updatedUser.keys.coordinatingKeys
+    });
+  } catch (err) {
+    console.error('Error coordinating keys:', err);
+    res.status(500);
+    res.send({ error: 'failed to coordinate keys' });
+  }
+});
+
+// NFC verification endpoint
+app.post('/nfc/verify', async (req, res) => {
+  try {
+    console.log('NFC verification request received');
+    const primaryUUID = req.body.primaryUUID;
+    const pubKey = req.body.pubKey;
+    const signature = req.body.signature;
+    const timestamp = req.body.timestamp;
+
+    if (!primaryUUID || !pubKey || !signature) {
+      console.log('Missing required fields');
+      return res.status(400).send({ error: 'Missing required fields: primaryUUID, pubKey, signature' });
+    }
+
+    // Get primary user
+    const primaryUser = await user.getUser(primaryUUID);
+    if (!primaryUser) {
+      console.log('Primary user not found:', primaryUUID);
+      return res.status(404).send({ error: 'Primary user not found' });
+    }
+
+    console.log('NFC verify - Fetching BDO for pubKey:', pubKey);
+
+    // Fetch BDO using pubKey
+    let bdoData;
+    try {
+      bdoData = await bdo.getBDO(pubKey, bdoHash, () => {}, db.getKeys);
+    } catch (bdoErr) {
+      console.log('Failed to fetch BDO:', bdoErr.message);
+      return res.status(404).send({
+        success: false,
+        error: 'BDO not found for this pubKey',
+        details: bdoErr.message
+      });
+    }
+
+    console.log('BDO fetched successfully');
+
+    // Extract message from BDO
+    const bdoMessage = bdoData.data?.message;
+    if (!bdoMessage) {
+      console.log('No message found in BDO');
+      return res.status(400).send({
+        success: false,
+        error: 'BDO does not contain a message field'
+      });
+    }
+
+    console.log('BDO message:', bdoMessage);
+    console.log('Verifying signature...');
+
+    // Verify signature against BDO message
+    let isValid = false;
+    try {
+      isValid = sessionless.verifySignature(signature, bdoMessage, pubKey);
+    } catch (verifyErr) {
+      console.log('Signature verification error:', verifyErr.message);
+      return res.status(403).send({
+        success: false,
+        error: 'Invalid signature format',
+        details: verifyErr.message
+      });
+    }
+
+    if (!isValid) {
+      console.log('Signature verification failed');
+      return res.status(403).send({
+        success: false,
+        error: 'Signature verification failed'
+      });
+    }
+
+    console.log('✅ Signature verified successfully');
+
+    // Check if rotation is needed
+    const shouldRotate = bdoData.data?.rotate === true;
+    let newPubKey = null;
+    let rotationUUID = null;
+
+    if (shouldRotate) {
+      console.log('🔄 Rotating key - creating new BDO with new pubKey');
+
+      // Generate new keys for rotation
+      const newKeys = {pubKey: '', privateKey: ''};
+      await sessionless.generateKeys(
+        (keys) => { newKeys.pubKey = keys.pubKey; newKeys.privateKey = keys.privateKey; },
+        () => { return newKeys; }
+      );
+
+      // Create new BDO with rotated data
+      const rotatedBDOData = {
+        ...bdoData.data,
+        previousPubKey: pubKey,
+        rotated: true,
+        rotatedAt: new Date().toISOString()
+      };
+
+      try {
+        const newBDO = await bdo.createBDO(newKeys.pubKey, bdoHash, rotatedBDOData, () => {}, db.getKeys);
+        newPubKey = newKeys.pubKey;
+        rotationUUID = newBDO.uuid;
+        console.log('✅ New BDO created with pubKey:', newPubKey);
+      } catch (rotateErr) {
+        console.log('❌ Failed to create rotated BDO:', rotateErr.message);
+        // Continue anyway - we verified the signature
+      }
+    }
+
+    // Determine if coordinating or interacting key
+    const isCoordinating = bdoData.data?.coordinating === true;
+    const keyType = isCoordinating ? 'coordinating' : 'interacting';
+
+    console.log(`Adding ${keyType} key to primary user`);
+
+    // Add key to primary user
+    let updatedUser;
+    if (isCoordinating) {
+      // Create a UUID for this coordinating key (use rotation UUID if available)
+      const coordinatingUUID = rotationUUID || createHash('sha256').update(pubKey).digest('hex').substring(0, 36);
+      updatedUser = await db.coordinateKeys(primaryUser, pubKey, coordinatingUUID);
+    } else {
+      // For interacting keys, create a temporary user and associate
+      const interactingUUID = createHash('sha256').update(pubKey).digest('hex').substring(0, 36);
+      const interactingUser = {
+        uuid: interactingUUID,
+        pubKey: pubKey,
+        keys: {interactingKeys: {}, coordinatingKeys: {}}
+      };
+
+      // Save interacting user if it doesn't exist
+      try {
+        await user.getUser(interactingUUID);
+      } catch (err) {
+        // User doesn't exist, create it
+        await db.saveUser(interactingUser);
+      }
+
+      // Associate the users
+      updatedUser = await associate.associate(primaryUser, interactingUser);
+    }
+
+    console.log('✅ Key added successfully');
+
+    // Build response
+    const response = {
+      success: true,
+      message: `Key verified and added as ${keyType} key`,
+      keyType: keyType,
+      pubKey: pubKey
+    };
+
+    if (shouldRotate && newPubKey) {
+      response.rotated = true;
+      response.newPubKey = newPubKey;
+      response.rotationUUID = rotationUUID;
+    }
+
+    res.send(response);
+  } catch (err) {
+    console.error('NFC verification error:', err);
+    res.status(500).send({
+      success: false,
+      error: 'Internal server error',
+      details: err.message
+    });
+  }
+});
+
 app.listen(3000);
 
 console.log('julia\'s ready for connections');

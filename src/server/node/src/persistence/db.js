@@ -187,6 +187,14 @@ console.log('THE PROBLEM IS THAT newPubKey DOESN\'T EXIST');
   getKeys: async () => {
     const keyString = await client.get('keys');
     return JSON.parse(keyString);
+  },
+
+  coordinateKeys: async (primaryUser, coordinatingPubKey, coordinatingUuid) => {
+    // Add the coordinating key to the primary user's coordinatingKeys
+    primaryUser.keys.coordinatingKeys[coordinatingUuid] = coordinatingPubKey;
+
+    await db.saveUser(primaryUser);
+    return primaryUser;
   }
 
 };
