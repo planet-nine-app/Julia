@@ -77,7 +77,12 @@ app.put('/user/create', async (req, res) => {
     const pubKey = req.body.pubKey;
     const message = req.body.timestamp +  pubKey;
     const signature = req.body.signature;
-   
+
+    console.log('PubKey type:', typeof pubKey);
+    console.log('PubKey value:', pubKey);
+    console.log('Signature type:', typeof signature);
+    console.log('Signature value:', signature);
+
     if(!signature || !sessionless.verifySignature(signature, message, pubKey)) {
       res.status(403);
       return res.send({error: 'auth error'});
@@ -86,6 +91,7 @@ app.put('/user/create', async (req, res) => {
     const foundUser = await user.putUser(req.body.user);
     res.send(foundUser);
   } catch(err) {
+    console.log('Error in /user/create:', err);
     res.status(404);
     res.send({error: 'not found'});
   }
@@ -770,6 +776,63 @@ app.post('/nfc/verify', async (req, res) => {
   }
 });
 
-app.listen(3000);
+// Wand registration endpoint
+app.post('/wand/register', async (req, res) => {
+  try {
+    console.log('🪄 Wand registration request received');
+    const primaryUUID = req.body.primaryUUID;
+    const pubKey = req.body.pubKey;
+    const wandName = req.body.wandName;
+    const timestamp = req.body.timestamp;
 
-console.log('julia\'s ready for connections');
+    if (!primaryUUID || !pubKey || !wandName) {
+      console.log('Missing required fields');
+      return res.status(400).send({
+        success: false,
+        error: 'Missing required fields: primaryUUID, pubKey, wandName'
+      });
+    }
+
+    // Get primary user
+    const primaryUser = await user.getUser(primaryUUID);
+    if (!primaryUser) {
+      console.log('Primary user not found:', primaryUUID);
+      return res.status(404).send({
+        success: false,
+        error: 'Primary user not found'
+      });
+    }
+
+    console.log(`🪄 Registering wand "${wandName}" with pubKey: ${pubKey.substring(0, 16)}...`);
+
+    // Create a UUID for this coordinating key (wand)
+    const wandUUID = createHash('sha256').update(pubKey + wandName).digest('hex').substring(0, 36);
+
+    // Add wand pubKey as coordinating key
+    const updatedUser = await db.coordinateKeys(primaryUser, pubKey, wandUUID);
+
+    console.log('✅ Wand registered successfully');
+
+    // Build response
+    const response = {
+      success: true,
+      message: `Wand "${wandName}" registered as coordinating key`,
+      wandName: wandName,
+      pubKey: pubKey,
+      wandUUID: wandUUID
+    };
+
+    res.send(response);
+  } catch (err) {
+    console.error('❌ Wand registration error:', err);
+    res.status(500).send({
+      success: false,
+      error: 'Internal server error',
+      details: err.message
+    });
+  }
+});
+
+app.listen(3001);
+
+console.log('julia\'s ready for connections on port 3001');
