@@ -833,6 +833,6 @@ app.post('/wand/register', async (req, res) => {
   }
 });
 
-app.listen(3001);
+app.listen(3000);
 
-console.log('julia\'s ready for connections on port 3001');
+console.log('julia\'s ready for connections on port 3000');
